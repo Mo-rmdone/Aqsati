@@ -849,6 +849,14 @@ begin
 
   return v_left;
 end $$;
+-- internal helper only, called from record_payment() below via its SECURITY
+-- DEFINER context (which works regardless of the caller's own grants) — not
+-- a public entry point. Closing this needs all three: revoke the implicit
+-- PUBLIC grant every new function gets, AND revoke Supabase's separate
+-- project-level default grant to anon/authenticated (neither alone is
+-- sufficient — see the identical fix on Task 2's tenancy functions).
+revoke all on function public.allocate_payment(uuid, uuid, numeric) from public;
+revoke execute on function public.allocate_payment(uuid, uuid, numeric) from anon, authenticated;
 
 -- آجل counterpart to allocate_payment — a credit_invoice has no per-installment
 -- schedule, so it's a single running balance rather than a waterfall loop
@@ -874,6 +882,9 @@ begin
 
   return p_amount - v_take;  -- overpayment remainder, if any
 end $$;
+-- internal helper only, same reasoning as allocate_payment above
+revoke all on function public.allocate_credit_payment(uuid, uuid, numeric) from public;
+revoke execute on function public.allocate_credit_payment(uuid, uuid, numeric) from anon, authenticated;
 
 -- record a payment against either a contract (installments) or a credit_invoice
 -- (آجل), and allocate it atomically. SECURITY DEFINER + explicit role check so a
@@ -901,6 +912,13 @@ begin
 
   return v_id;
 end $$;
+-- record_payment IS a legitimate client entry point (called by authenticated
+-- users), gated by its own internal current_role() check above — anon must
+-- still be blocked explicitly (auth.uid() being null would fail harmlessly,
+-- but don't rely on that — see Task 2's identical finding).
+revoke all on function public.record_payment(uuid, uuid, uuid, numeric, text) from public;
+revoke execute on function public.record_payment(uuid, uuid, uuid, numeric, text) from anon;
+grant execute on function public.record_payment(uuid, uuid, uuid, numeric, text) to authenticated;
 ```
 
 - [ ] **Step 3: Dashboard views + the overdue flip the Worker calls**
@@ -925,7 +943,12 @@ join public.contract c  on c.id = i.contract_id
 join public.customer cu on cu.id = c.customer_id
 where i.status in ('pending','partial','overdue') and i.due_date <= current_date + 7;
 
--- called nightly by the Cloudflare Worker
+-- called nightly by the Cloudflare Worker using the service_role key (which
+-- bypasses grants entirely) — anon/authenticated have no legitimate reason
+-- to trigger this directly. Closing this needs both the implicit PUBLIC
+-- grant every new function gets AND Supabase's separate project-level
+-- default grant to anon/authenticated (neither alone is sufficient — see
+-- the identical fix on Task 2's tenancy functions).
 create or replace function public.flip_overdue() returns int
 language plpgsql security definer set search_path = public as $$
 declare n int;
@@ -935,6 +958,8 @@ begin
   get diagnostics n = row_count;
   return n;
 end $$;
+revoke all on function public.flip_overdue() from public;
+revoke execute on function public.flip_overdue() from anon, authenticated;
 ```
 
 - [ ] **Step 4: Apply, then commit**
