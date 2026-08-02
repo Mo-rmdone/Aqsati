@@ -30,3 +30,33 @@ begin
     return next;
   end loop;
 end $$;
+
+create or replace function public.allocate_payment(p_contract uuid, p_amount numeric)
+returns numeric language plpgsql as $$
+declare
+  r record;
+  v_left numeric(14,2) := p_amount;
+  v_take numeric(14,2);
+begin
+  -- oldest-due first
+  for r in
+    select id, amount_due, amount_paid
+    from public.installment
+    where contract_id = p_contract and status <> 'paid'
+    order by due_date, seq_no
+    for update
+  loop
+    exit when v_left <= 0;
+    v_take := least(v_left, r.amount_due - r.amount_paid);
+
+    update public.installment
+       set amount_paid = amount_paid + v_take,
+           status = case when amount_paid + v_take >= amount_due then 'paid' else 'partial' end,
+           paid_at = case when amount_paid + v_take >= amount_due then now() else paid_at end
+     where id = r.id;
+
+    v_left := v_left - v_take;
+  end loop;
+
+  return v_left;  -- overpayment remainder -> caller stores as credit
+end $$;
