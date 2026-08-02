@@ -32,7 +32,7 @@ begin
 end $$;
 
 create or replace function public.allocate_payment(p_contract uuid, p_amount numeric)
-returns numeric language plpgsql as $$
+returns numeric language plpgsql set search_path = '' as $$
 declare
   r record;
   v_left numeric(14,2) := p_amount;
