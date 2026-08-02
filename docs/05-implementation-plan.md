@@ -665,6 +665,8 @@ create index on public.installment (contract_id, due_date);
 create index on public.installment (due_date, status);
 create trigger contract_audit after insert or update or delete
   on public.contract for each row execute function public.fn_audit();
+create trigger installment_audit after insert or update or delete
+  on public.installment for each row execute function public.fn_audit();
 ```
 
 - [ ] **Step 2: Add the contract-creation RPC** (wraps schedule generation in one transaction)
