@@ -2,7 +2,7 @@ create or replace function public.build_schedule(
   p_financed numeric, p_annual_rate numeric, p_num int,
   p_start date, p_method text default 'flat'
 ) returns table(seq_no int, due_date date, amount_due numeric)
-language plpgsql immutable as $$
+language plpgsql immutable set search_path = '' as $$
 declare
   v_interest numeric(14,2);
   v_total    numeric(14,2);
