@@ -18,6 +18,13 @@ create table public.contract (
 create table public.installment (
   id uuid primary key default gen_random_uuid(),
   contract_id uuid not null references public.contract(id) on delete cascade,
+  -- denormalized from contract.tenant_id: gives fn_audit() a reliable tenant_id directly on the
+  -- row being audited, so an audit of a cascade-deleted installment doesn't need to join back to
+  -- a contract row that may already be gone earlier in the same cascading DELETE (nested FK
+  -- cascades run as separate sub-commands, so a parent row deleted by an earlier sub-command is
+  -- not visible to a plain SELECT in a later one). RLS policies below still isolate installment
+  -- purely via the contract_id join, unaffected by this column.
+  tenant_id uuid not null references public.tenant(id) on delete cascade,
   seq_no int not null,
   due_date date not null,
   amount_due numeric(14,2) not null,
@@ -63,27 +70,19 @@ create policy installment_update on public.installment for update to authenticat
                        and public.current_role() in ('owner','manager','accountant')));
 -- no delete policy on installment: installments are never deleted, only transitioned via status
 
--- fn_audit (0002_audit.sql) does coalesce(new.tenant_id, old.tenant_id), which assumes every
--- audited table has a tenant_id column. installment does not (it inherits tenant scoping
--- through contract_id), so the original fn_audit body raises "record has no field tenant_id"
--- the moment installment_audit fires below. Patch fn_audit to derive tenant_id via the parent
--- contract for the installment case, leaving its behavior for every other (tenant_id-bearing)
--- table unchanged.
+-- fn_audit is redefined here (superseding the version in 0002_audit.sql) purely to harden its
+-- search_path from 'public' to '' per this project's established pattern (see build_schedule /
+-- allocate_payment / create_contract) — every reference inside is already schema-qualified
+-- (public.audit_log, auth.uid()), so this is a no-behavior-change hardening. installment now
+-- carries its own tenant_id column (added above), so the original coalesce(new.tenant_id,
+-- old.tenant_id) pattern needs no table-specific branching and works unchanged for every
+-- audited table, installment included.
 create or replace function public.fn_audit() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare v_tenant_id uuid;
+language plpgsql security definer set search_path = '' as $$
 begin
-  if tg_table_name = 'installment' then
-    select c.tenant_id into v_tenant_id
-    from public.contract c
-    where c.id = coalesce(new.contract_id, old.contract_id);
-  else
-    v_tenant_id := coalesce(new.tenant_id, old.tenant_id);
-  end if;
-
   insert into public.audit_log(tenant_id, user_id, action, entity_type, entity_id, before_json, after_json)
   values (
-    v_tenant_id,
+    coalesce(new.tenant_id, old.tenant_id),
     auth.uid(),
     lower(tg_op),
     tg_table_name,
@@ -117,8 +116,8 @@ begin
 
   v_financed := (p->>'total_price')::numeric - (p->>'down_payment')::numeric;
 
-  insert into public.installment(contract_id, seq_no, due_date, amount_due)
-  select v_id, s.seq_no, s.due_date, s.amount_due
+  insert into public.installment(contract_id, tenant_id, seq_no, due_date, amount_due)
+  select v_id, public.current_tenant_id(), s.seq_no, s.due_date, s.amount_due
   from public.build_schedule(v_financed, (p->>'interest_rate')::numeric,
                              (p->>'num_installments')::int, (p->>'start_date')::date,
                              p->>'interest_method') s;

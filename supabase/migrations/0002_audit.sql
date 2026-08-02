@@ -10,6 +10,9 @@ create table public.audit_log (
   created_at timestamptz not null default now()
 );
 
+-- NOTE: redefined in 0004_contracts.sql (search_path hardened to ''); that later definition is
+-- canonical. Kept here unchanged so migration history / diffs stay accurate to what each
+-- migration actually applied at the time.
 create or replace function public.fn_audit() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
