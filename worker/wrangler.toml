@@ -1,0 +1,6 @@
+name = "aqsati-cron"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[triggers]
+crons = ["0 1 * * *"]   # 03:00 Cairo (01:00 UTC) daily
