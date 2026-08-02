@@ -30,10 +30,22 @@ returns uuid language sql stable security definer set search_path = public as $$
   select tenant_id from public.profile where id = auth.uid()
 $$;
 
+-- Postgres grants EXECUTE to PUBLIC on new functions by default, and Supabase's
+-- default ACLs separately grant EXECUTE to anon/authenticated at creation time.
+-- Both sources have to be revoked to actually lock anon out; a role-specific
+-- revoke alone leaves the PUBLIC grant in force for anon too.
+revoke all on function public.current_tenant_id() from public;
+revoke execute on function public.current_tenant_id() from anon;
+grant execute on function public.current_tenant_id() to authenticated;
+
 create or replace function public.current_role()
 returns text language sql stable security definer set search_path = public as $$
   select role from public.profile where id = auth.uid()
 $$;
+
+revoke all on function public.current_role() from public;
+revoke execute on function public.current_role() from anon;
+grant execute on function public.current_role() to authenticated;
 
 alter table public.tenant  enable row level security;
 alter table public.branch  enable row level security;
@@ -74,4 +86,5 @@ begin
 end $$;
 
 revoke all on function public.signup_tenant(text, text) from public;
+revoke execute on function public.signup_tenant(text, text) from anon;
 grant execute on function public.signup_tenant(text, text) to authenticated;
