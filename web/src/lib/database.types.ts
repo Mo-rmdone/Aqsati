@@ -313,6 +313,96 @@ export type Database = {
           },
         ]
       }
+      message_log: {
+        Row: {
+          channel: string
+          contract_id: string | null
+          customer_id: string
+          id: string
+          installment_id: string | null
+          sent_at: string
+          sent_by: string | null
+          tenant_id: string
+        }
+        Insert: {
+          channel?: string
+          contract_id?: string | null
+          customer_id: string
+          id?: string
+          installment_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          tenant_id: string
+        }
+        Update: {
+          channel?: string
+          contract_id?: string | null
+          customer_id?: string
+          id?: string
+          installment_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_log_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contract"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "message_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "message_log_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "installment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["installment_id"]
+          },
+          {
+            foreignKeyName: "message_log_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment: {
         Row: {
           amount: number

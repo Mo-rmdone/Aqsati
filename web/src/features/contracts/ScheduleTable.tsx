@@ -11,7 +11,11 @@ export interface ScheduleRow {
   amount_paid?: number;
 }
 
-const STATUS_LABEL: Record<string, string> = {
+// Exported so other collections-status UI (the worklist, Task 10) can reuse
+// the exact same status vocabulary/colors rather than inventing a second one
+// — an installment's `status` column has one fixed set of values regardless
+// of which screen is showing it.
+export const STATUS_LABEL: Record<string, string> = {
   paid: "مدفوع",
   partial: "جزئي",
   due: "مستحق",
@@ -20,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
   waived: "معفى",
 };
 
-const STATUS_DOT: Record<string, string> = {
+export const STATUS_DOT: Record<string, string> = {
   paid: "bg-success",
   partial: "bg-amber",
   due: "bg-amber",
