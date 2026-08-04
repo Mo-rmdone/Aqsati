@@ -4,3 +4,11 @@ compatibility_date = "2026-01-01"
 
 [triggers]
 crons = ["0 1 * * *"]   # 03:00 Cairo (01:00 UTC) daily
+
+# SUPABASE_URL is not sensitive (same value as web/VITE_SUPABASE_URL, already
+# public in the shipped frontend bundle), so it's a committed [vars] entry
+# rather than a secret. SUPABASE_SERVICE_KEY *is* sensitive and must never be
+# committed here — set it with `npx wrangler secret put SUPABASE_SERVICE_KEY`
+# (see task-12-report.md for the exact deploy sequence).
+[vars]
+SUPABASE_URL = "https://vvwhhcndctsumamtqhsz.supabase.co"
