@@ -45,19 +45,47 @@ export default function CustomerPicker({
     queryKey: ["customer-search", search],
     enabled: open,
     queryFn: async () => {
-      let query = supabase
-        .from("customer")
-        .select("id, name, phone")
-        .order("created_at", { ascending: false })
-        .limit(8);
+      const term = search.trim().slice(0, 100);
 
-      if (search.trim()) {
-        query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      if (!term) {
+        const { data, error } = await supabase
+          .from("customer")
+          .select("id, name, phone")
+          .order("created_at", { ascending: false })
+          .limit(8);
+        if (error) throw error;
+        return data as PickedCustomer[];
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PickedCustomer[];
+      // Two typed .ilike() calls merged client-side, rather than building a
+      // single .or() filter string — .or() re-parses its argument as a
+      // PostgREST filter expression, so user input containing `,` or `()`
+      // would inject extra filter conditions. .ilike()'s pattern is a plain
+      // parameter value, not filter-expression syntax, so it can't do that.
+      const pattern = `%${term}%`;
+      const [byName, byPhone] = await Promise.all([
+        supabase
+          .from("customer")
+          .select("id, name, phone")
+          .ilike("name", pattern)
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("customer")
+          .select("id, name, phone")
+          .ilike("phone", pattern)
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
+
+      if (byName.error) throw byName.error;
+      if (byPhone.error) throw byPhone.error;
+
+      const merged = new Map<string, PickedCustomer>();
+      for (const c of [...byName.data, ...byPhone.data]) {
+        merged.set(c.id, c as PickedCustomer);
+      }
+      return Array.from(merged.values()).slice(0, 8);
     },
   });
 
