@@ -48,3 +48,12 @@ begin
 end $$;
 revoke all on function public.flip_overdue() from public;
 revoke execute on function public.flip_overdue() from anon, authenticated;
+
+-- defense-in-depth (not in the brief's original SQL): security_invoker=true on all
+-- three dashboard/aging views already means an anon caller (no JWT sub, so
+-- current_tenant_id() resolves to null) gets zero rows via the underlying tables'
+-- RLS policies -- this is not currently a live leak. But every SECURITY DEFINER
+-- function in this task explicitly revokes anon execute where it's not a legitimate
+-- entry point, and these views should follow the same discipline rather than relying
+-- solely on RLS evaluating to "no rows" for anon.
+revoke select on public.v_aging, public.v_collections_kpi, public.v_worklist from anon;

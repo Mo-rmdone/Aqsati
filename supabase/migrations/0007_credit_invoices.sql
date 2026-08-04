@@ -146,6 +146,21 @@ revoke execute on function public.allocate_credit_payment(uuid, uuid, numeric) f
 --
 -- search_path hardened to '' (brief's original SQL used 'public'), same reasoning as
 -- allocate_payment above — every reference is already schema-qualified.
+--
+-- Tenant-ownership checks on p_contract/p_credit_invoice/p_customer (not in the
+-- brief's original SQL) -- fix for a real cross-tenant write vulnerability found in
+-- post-implementation review: as a SECURITY DEFINER function, record_payment bypasses
+-- RLS by design, and previously trusted these three foreign-key arguments unverified.
+-- record_payment correctly stamps the new payment row's own tenant_id from
+-- current_tenant_id(), but a caller from Tenant A who obtained Tenant B's
+-- contract_id/credit_invoice_id/customer_id (leaked via a bug elsewhere, a log line,
+-- a support channel, etc.) could previously call record_payment with it and
+-- successfully write to Tenant B's installment/credit_invoice/payment_allocation rows
+-- while the payment row itself got misattributed to Tenant A. These checks make that
+-- impossible at the database layer, matching the project's tenant-isolation-is-the-
+-- trust-foundation principle (same class of fix as the view security_invoker fix
+-- above). Placed before the payment insert so a cross-tenant attempt fails cleanly
+-- with no partial writes.
 create or replace function public.record_payment(
   p_contract uuid, p_credit_invoice uuid, p_customer uuid, p_amount numeric, p_method text
 ) returns uuid language plpgsql security definer set search_path = '' as $$
@@ -153,6 +168,20 @@ declare v_id uuid; v_tenant uuid := public.current_tenant_id();
 begin
   if public.current_role() not in ('owner','manager','accountant','collector') then
     raise exception 'not authorized to record payments';
+  end if;
+
+  if not exists (select 1 from public.customer where id = p_customer and tenant_id = v_tenant) then
+    raise exception 'customer does not belong to caller''s tenant';
+  end if;
+
+  if p_contract is not null
+     and not exists (select 1 from public.contract where id = p_contract and tenant_id = v_tenant) then
+    raise exception 'contract does not belong to caller''s tenant';
+  end if;
+
+  if p_credit_invoice is not null
+     and not exists (select 1 from public.credit_invoice where id = p_credit_invoice and tenant_id = v_tenant) then
+    raise exception 'credit invoice does not belong to caller''s tenant';
   end if;
 
   insert into public.payment(tenant_id, customer_id, contract_id, credit_invoice_id, amount, method)
