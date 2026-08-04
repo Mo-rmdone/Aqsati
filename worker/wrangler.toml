@@ -1,4 +1,4 @@
-name = "aqsati-cron"
+name = "aqsati"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
