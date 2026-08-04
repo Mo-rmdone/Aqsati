@@ -7,10 +7,13 @@ export interface AgingRow {
 
 // Fixed left-to-right-of-severity order (dataviz skill: "compare magnitude" ->
 // bar chart; a status/severity axis is ordered, never re-sorted by value) —
-// matches v_aging's own bucket CASE expression (0007_credit_invoices.sql).
-const BUCKET_ORDER = ["current", "b1_30", "b31_60", "b61_90", "b90_plus"] as const;
+// matches v_aging's (and Task 11's v_installment_aging's) own bucket CASE
+// expression (0007_credit_invoices.sql / 0010_installment_aging.sql).
+// Exported so the Task 11 aging report and customer-360 view reuse this exact
+// bucket vocabulary/order instead of redefining a second one.
+export const BUCKET_ORDER = ["current", "b1_30", "b31_60", "b61_90", "b90_plus"] as const;
 
-const BUCKET_LABEL: Record<(typeof BUCKET_ORDER)[number], string> = {
+export const BUCKET_LABEL: Record<(typeof BUCKET_ORDER)[number], string> = {
   current: "غير مستحق بعد",
   b1_30: "متأخر 1-30 يوم",
   b31_60: "متأخر 31-60 يوم",
@@ -24,7 +27,7 @@ const BUCKET_LABEL: Record<(typeof BUCKET_ORDER)[number], string> = {
 // buckets read as danger. Opacity steps the same hue lighter->darker so
 // severity still reads as a single ordered ramp, per the dataviz skill's
 // meter guidance ("fill carries severity... same-ramp lighter step").
-const BUCKET_COLOR: Record<(typeof BUCKET_ORDER)[number], string> = {
+export const BUCKET_COLOR: Record<(typeof BUCKET_ORDER)[number], string> = {
   current: "bg-muted/60",
   b1_30: "bg-amber/55",
   b31_60: "bg-amber",
@@ -41,7 +44,18 @@ const BUCKET_COLOR: Record<(typeof BUCKET_ORDER)[number], string> = {
  * bucket label + color position already carry identity (dataviz skill:
  * "a single series needs no legend").
  */
-export default function AgingBars({ rows }: { rows: AgingRow[] }) {
+export default function AgingBars({
+  rows,
+  title = "أعمار الديون (آجل)",
+  emptyLabel = "لا توجد فواتير آجل مستحقة حاليًا.",
+}: {
+  rows: AgingRow[];
+  /** Defaults to the original آجل-only wording (Task 10's Dashboard usage
+   * is unchanged); Task 11's aging report passes its own titles/empty
+   * copy to reuse this same bar chart for the installment side too. */
+  title?: string;
+  emptyLabel?: string;
+}) {
   const totals = new Map<string, number>();
   for (const key of BUCKET_ORDER) totals.set(key, 0);
   for (const r of rows) {
@@ -53,10 +67,10 @@ export default function AgingBars({ rows }: { rows: AgingRow[] }) {
 
   return (
     <div className="rounded-lg border border-white/10 bg-panel p-4 sm:p-6">
-      <h2 className="text-sm font-semibold text-muted">أعمار الديون (آجل)</h2>
+      <h2 className="text-sm font-semibold text-muted">{title}</h2>
 
       {grandTotal === 0 ? (
-        <p className="mt-3 text-sm text-muted">لا توجد فواتير آجل مستحقة حاليًا.</p>
+        <p className="mt-3 text-sm text-muted">{emptyLabel}</p>
       ) : (
         <div className="mt-4 flex flex-col gap-3">
           {BUCKET_ORDER.map((key) => {

@@ -5,7 +5,7 @@ import { useAuth } from "../../lib/auth-context";
 import { egp, arDate } from "../../lib/format";
 import { reminderLink } from "../../lib/whatsapp";
 import { STATUS_DOT, STATUS_LABEL } from "../contracts/ScheduleTable";
-import RecordPaymentModal from "./RecordPaymentModal";
+import RecordPaymentModal, { type PaymentTarget } from "../payments/RecordPaymentModal";
 import type { Tables } from "../../lib/database.types";
 
 export type WorklistRow = Tables<"v_worklist">;
@@ -191,15 +191,19 @@ export default function Worklist({
         </table>
       </div>
 
-      {payingRow && (
+      {payingRow && payingRow.customer_id && (
         <RecordPaymentModal
-          row={payingRow}
+          target={
+            {
+              customerId: payingRow.customer_id,
+              customerName: payingRow.name ?? "",
+              contractId: payingRow.contract_id,
+              dueDate: payingRow.due_date,
+              outstanding: payingRow.amount ?? 0,
+            } satisfies PaymentTarget
+          }
           onClose={() => setPayingRow(null)}
-          onSuccess={() => {
-            setPayingRow(null);
-            void queryClient.invalidateQueries({ queryKey: ["worklist"] });
-            void queryClient.invalidateQueries({ queryKey: ["collections-kpi"] });
-          }}
+          onSuccess={() => setPayingRow(null)}
         />
       )}
     </>

@@ -301,6 +301,13 @@ export type Database = {
             foreignKeyName: "installment_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "v_installment_aging"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "installment_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["contract_id"]
           },
@@ -356,6 +363,13 @@ export type Database = {
             foreignKeyName: "message_log_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "v_installment_aging"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "message_log_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["contract_id"]
           },
@@ -378,6 +392,13 @@ export type Database = {
             columns: ["installment_id"]
             isOneToOne: false
             referencedRelation: "installment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_installment_aging"
             referencedColumns: ["id"]
           },
           {
@@ -450,6 +471,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contract"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_installment_aging"
+            referencedColumns: ["contract_id"]
           },
           {
             foreignKeyName: "payment_contract_id_fkey"
@@ -537,6 +565,13 @@ export type Database = {
             columns: ["installment_id"]
             isOneToOne: false
             referencedRelation: "installment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocation_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_installment_aging"
             referencedColumns: ["id"]
           },
           {
@@ -674,6 +709,40 @@ export type Database = {
           tenant_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contract_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_installment_aging: {
+        Row: {
+          bucket: string | null
+          contract_id: string | null
+          customer_id: string | null
+          due_date: string | null
+          id: string | null
+          outstanding: number | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["customer_id"]
+          },
           {
             foreignKeyName: "contract_tenant_id_fkey"
             columns: ["tenant_id"]

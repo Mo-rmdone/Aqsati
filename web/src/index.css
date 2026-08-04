@@ -82,3 +82,16 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Receipt printing (Task 11, features/payments/Receipt.tsx): the receipt
+ * route itself lives outside AppLayout so there's normally no chrome to
+ * print, but this is defense in depth for any future print-triggering
+ * screen nested inside AppLayout's header/nav. Per-element `print:hidden`
+ * (e.g. the receipt's own back-link/print-button row) still does the
+ * primary work; this just guarantees the app shell never leaks onto paper. */
+@media print {
+  header,
+  nav {
+    display: none !important;
+  }
+}

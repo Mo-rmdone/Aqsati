@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth-context";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -9,18 +9,43 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "مشاهد",
 };
 
+const NAV_LINKS = [
+  { to: "/", label: "لوحة التحصيل", end: true },
+  { to: "/customers", label: "العملاء", end: false },
+  { to: "/reports", label: "التقارير", end: false },
+];
+
 export default function AppLayout() {
   const { profile, signOut } = useAuth();
 
   return (
     <div className="flex min-h-svh flex-col bg-navy">
-      <header className="flex items-center justify-between bg-teal px-4 py-3 text-white shadow-md sm:px-6">
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-teal px-4 py-3 text-white shadow-md sm:px-6">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">أقساطي</span>
+          <Link to="/" className="text-lg font-bold">
+            أقساطي
+          </Link>
           <span className="hidden text-sm text-white/70 sm:inline">
             Get paid, automatically.
           </span>
         </div>
+
+        <nav className="flex items-center gap-1 order-3 w-full sm:order-none sm:w-auto">
+          {NAV_LINKS.map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              end={l.end}
+              className={({ isActive }) =>
+                `rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  isActive ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"
+                }`
+              }
+            >
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
 
         <div className="flex items-center gap-4">
           {profile && (
