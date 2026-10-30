@@ -3,12 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
 [triggers]
-crons = ["0 1 * * *"]   # 03:00 Cairo (01:00 UTC) daily
+crons = ["0 1 * * *"]   # 03:00 Cairo (01:00 UTC) daily keepalive ping
 
 # SUPABASE_URL is not sensitive (same value as web/VITE_SUPABASE_URL, already
-# public in the shipped frontend bundle), so it's a committed [vars] entry
-# rather than a secret. SUPABASE_SERVICE_KEY *is* sensitive and must never be
-# committed here — set it with `npx wrangler secret put SUPABASE_SERVICE_KEY`
-# (see task-12-report.md for the exact deploy sequence).
+# public in the shipped frontend bundle), so it's a committed [vars] entry.
+# SUPABASE_ANON_KEY is public too, but is set as a secret to keep it out of git:
+#   npx wrangler secret put SUPABASE_ANON_KEY   (value of web/.env.local's VITE_SUPABASE_ANON_KEY)
+# No service-role key is needed — flip_overdue runs via pg_cron in the database.
 [vars]
 SUPABASE_URL = "https://vvwhhcndctsumamtqhsz.supabase.co"
