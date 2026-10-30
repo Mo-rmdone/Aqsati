@@ -1,0 +1,15 @@
+-- supabase/tests/helpers.sql
+-- Copy these lines (down to the "end helpers" marker) verbatim to the top of every test file,
+-- right after `begin;`. Why: the Supabase MCP `execute_sql` tool returns only the LAST
+-- row-returning statement of a multi-statement script, and pgTAP emits one row per assertion.
+-- So every assertion is written as `insert into tap(l) select <pgtap call>;` and the file ends
+-- with ONE `select string_agg(...)` (before `rollback;`, which returns no rows) that shows the
+-- whole TAP stream. Pass = every line is `ok N - ...` and there is no `not ok`.
+-- Requires the pgtap extension and tests.as_new_owner() (migration 0012).
+create temp table tap(n serial, l text);
+-- end helpers
+--
+-- Footer to end each test file:
+--   insert into tap(l) select * from finish();
+--   select string_agg(l, E'\n' order by n) as tap from tap;
+--   rollback;

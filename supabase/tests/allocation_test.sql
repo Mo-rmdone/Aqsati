@@ -1,6 +1,7 @@
 -- supabase/tests/allocation_test.sql
 begin;
-select plan(3);
+create temp table tap(n serial, l text);
+insert into tap(l) select plan(3);
 
 -- Fixture note: this file originally created its own shadow `public.contract`/
 -- `public.installment` tables, written when Task 6 (Phase 2 domain tables) had not
@@ -27,7 +28,7 @@ insert into public.contract(id, tenant_id, customer_id, total_price, num_install
   values ('11111111-1111-1111-1111-111111111111',
           '99999999-9999-9999-9999-999999999999',
           '88888888-8888-8888-8888-888888888888',
-          6000, 2, '2026-07-01', 'active');
+          6000, 12, '2026-07-01', 'active');
 insert into public.installment(contract_id, tenant_id, seq_no, due_date, amount_due,
                                 amount_paid, status) values
   ('11111111-1111-1111-1111-111111111111','99999999-9999-9999-9999-999999999999',
@@ -36,14 +37,15 @@ insert into public.installment(contract_id, tenant_id, seq_no, due_date, amount_
    2,'2026-08-01',3000,0,'pending');
 
 -- pay 5000: oldest first -> 3000 clears #1, 2000 partially pays #2
-select is( public.allocate_payment('11111111-1111-1111-1111-111111111111', 5000),
+insert into tap(l) select is( public.allocate_payment('11111111-1111-1111-1111-111111111111', 5000),
            0.00::numeric, 'nothing left unallocated' );
-select is( (select status from public.installment
+insert into tap(l) select is( (select status from public.installment
               where contract_id = '11111111-1111-1111-1111-111111111111' and seq_no=1),
            'paid', 'oldest installment cleared' );
-select is( (select amount_paid from public.installment
+insert into tap(l) select is( (select amount_paid from public.installment
               where contract_id = '11111111-1111-1111-1111-111111111111' and seq_no=2),
            2000.00::numeric, 'remainder partially pays next' );
 
-select * from finish();
+insert into tap(l) select * from finish();
+select string_agg(l, E'\n' order by n) as tap from tap;
 rollback;
