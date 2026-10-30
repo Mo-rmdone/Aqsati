@@ -24,7 +24,7 @@ alter table public.contract
   add constraint contract_contract_no_unique unique (tenant_id, contract_no);
 
 create or replace function public.fn_contract_no() returns trigger
-language plpgsql set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   -- serialize concurrent inserts for the same shop (same pattern as fn_receipt_no)
   perform 1 from public.tenant where id = new.tenant_id for update;
@@ -34,6 +34,8 @@ begin
 end $$;
 create trigger contract_no_assign before insert on public.contract
   for each row execute function public.fn_contract_no();
+revoke all on function public.fn_contract_no() from public;
+revoke execute on function public.fn_contract_no() from anon, authenticated;
 
 -- cash sales have no installments; installment sales run 12/24/36/48/60 months.
 -- NOT VALID: rows that predate this rule are left alone, new writes are enforced.
