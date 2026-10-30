@@ -44,6 +44,10 @@ begin
   v_id := nullif(p->>'id','')::uuid;
   if v_id is null then raise exception 'رقم العملية مطلوب'; end if;
 
+  -- serialize concurrent submits of the same sale id: the second caller waits, then sees the
+  -- contract and returns the id instead of failing with a unique_violation
+  perform pg_advisory_xact_lock(hashtext(v_id::text));
+
   -- idempotent: a retried request for an existing sale of this shop writes nothing
   if exists (select 1 from public.contract where id = v_id and tenant_id = v_tenant) then
     return v_id;

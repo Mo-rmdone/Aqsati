@@ -1,7 +1,7 @@
 -- supabase/tests/create_sale_test.sql
 begin;
 create temp table tap(n serial, l text);
-insert into tap(l) select plan(15);
+insert into tap(l) select plan(18);
 
 -- shop B first (its customer is the "other shop" customer), shop A last so the JWT is A's
 do $$
@@ -36,17 +36,17 @@ begin
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   perform set_config('t.r3', r::text, true);
   begin
-    perform public.create_sale(jsonb_build_object('id', gen_random_uuid(), 'customer_id', current_setting('t.ca'),
+    perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000001', 'customer_id', current_setting('t.ca'),
       'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', '2026-11-01',
       'down_payment', 1000, 'rate_percent', 10, 'years', 1));
   exception when others then perform set_config('t.e_down', sqlerrm, true); end;
   begin
-    perform public.create_sale(jsonb_build_object('id', gen_random_uuid(), 'customer_id', current_setting('t.ca'),
+    perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000002', 'customer_id', current_setting('t.ca'),
       'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', '2026-11-01',
       'down_payment', 0, 'rate_percent', 10, 'years', 6));
   exception when others then perform set_config('t.e_years', sqlerrm, true); end;
   begin
-    perform public.create_sale(jsonb_build_object('id', gen_random_uuid(), 'customer_id', current_setting('t.cb'),
+    perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000003', 'customer_id', current_setting('t.cb'),
       'product_desc', 'X', 'sale_type', 'cash', 'total_price', 1000, 'sale_date', '2026-11-01'));
   exception when others then perform set_config('t.e_cust', sqlerrm, true); end;
 end $$;
@@ -85,8 +85,17 @@ insert into tap(l) select is(
   || '/' || current_setting('t.r3'),
   '2/2/' || current_setting('t.inst'), 'create_sale is idempotent (no extra contract/payment, returns id)');
 insert into tap(l) select is(current_setting('t.e_down', true), 'المقدم لازم يكون أقل من السعر', 'rejects down payment >= price');
-insert into tap(l) select isnt(current_setting('t.e_years', true), null, 'rejects years outside 1..5');
-insert into tap(l) select isnt(current_setting('t.e_cust', true), null, 'rejects a customer from another shop');
+insert into tap(l) select is(current_setting('t.e_years', true), 'عدد السنين لازم يكون من 1 إلى 5', 'rejects years outside 1..5');
+insert into tap(l) select is(current_setting('t.e_cust', true), 'العميل غير موجود', 'rejects a customer from another shop');
+insert into tap(l) select is((select count(*)::int from public.contract
+  where id in ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000003')), 0,
+  'no contract written by any rejected call');
+insert into tap(l) select is(
+  (select count(*)::int from public.installment where contract_id in ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000003'))
+  + (select count(*)::int from public.payment where contract_id in ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000003')), 0,
+  'no installments or payments written by rejected calls');
+insert into tap(l) select is((select count(*)::int from public.contract where tenant_id = current_setting('t.a')::uuid), 2,
+  'shop A still has exactly its 2 contracts');
 insert into tap(l) select is(
   (select remaining from public.v_contract_balance where contract_id = current_setting('t.inst')::uuid), 19500.00,
   'balance view: remaining = 19500 after installment sale');
