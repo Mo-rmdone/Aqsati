@@ -114,9 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(freshProfile ?? null);
   }, []);
 
+  // Reads the live session rather than closing over `session` state: Signup
+  // calls this right after signUp() + signup_tenant, while its render still
+  // holds the pre-signup (null) session — loading the profile for that would
+  // leave every new owner stuck on the dashboard's loading screen.
   const refreshProfile = useCallback(async () => {
-    await loadProfile(session);
-  }, [loadProfile, session]);
+    const { data } = await supabase.auth.getSession();
+    await loadProfile(data.session);
+  }, [loadProfile]);
 
   useEffect(() => {
     let cancelled = false;
