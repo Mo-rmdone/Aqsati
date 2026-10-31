@@ -27,7 +27,7 @@ export function splitTotal(total: number, n: number): number[] {
 const pad = (x: number, w = 2) => String(x).padStart(w, '0');
 
 /** start + months, clamping to month end (Postgres date + interval 'N months'). */
-function addMonths(iso: string, months: number): string {
+export function addMonths(iso: string, months: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   const idx = y * 12 + (m - 1) + months;
   const ny = Math.floor(idx / 12);
