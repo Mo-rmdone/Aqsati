@@ -14,7 +14,7 @@ export default function AppLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'الرئيسية' }} />
-      <Tabs.Screen name="customers/index" options={{ title: 'العملاء' }} />
+      <Tabs.Screen name="customers" options={{ title: 'العملاء' }} />
       <Tabs.Screen name="sale/new" options={{ title: '+ فاتورة' }} />
       <Tabs.Screen name="settings" options={{ title: 'الإعدادات' }} />
     </Tabs>
