@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useCustomers } from '../../../api/customers';
@@ -11,7 +11,12 @@ import { colors, font, radius, spacing } from '../../../ui/theme';
 export default function Customers() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const { data, isLoading, error, refetch } = useCustomers(search);
+  const [debounced, setDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const { data, isLoading, error, refetch } = useCustomers(debounced);
 
   return (
     <Screen title="العملاء">
@@ -25,7 +30,7 @@ export default function Customers() {
         </View>
       ) : null}
       {data && data.length === 0 ? (
-        <Text style={styles.empty}>{search.trim() ? 'مفيش نتائج' : 'لسه مفيش عملاء'}</Text>
+        <Text style={styles.empty}>{debounced.trim() ? 'مفيش نتائج' : 'لسه مفيش عملاء'}</Text>
       ) : null}
       {data?.map((c) => (
         <Pressable

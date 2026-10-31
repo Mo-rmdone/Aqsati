@@ -1,9 +1,18 @@
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
-import { act, renderHook } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 const mockUpsert = jest.fn();
-const mockFrom = jest.fn((_table: string) => ({ upsert: mockUpsert }));
+const mockIlike = jest.fn();
+const mockChain: Record<string, unknown> = {};
+mockChain.select = () => mockChain;
+mockChain.order = () => mockChain;
+mockChain.limit = () => Promise.resolve({ data: [], error: null });
+mockChain.ilike = (col: string, pat: string) => {
+  mockIlike(col, pat);
+  return mockChain;
+};
+const mockFrom = jest.fn((_table: string) => ({ upsert: mockUpsert, select: mockChain.select }));
 
 jest.mock('../../lib/supabase', () => ({
   supabase: { from: (t: string) => mockFrom(t) },
@@ -13,7 +22,7 @@ jest.mock('../../lib/auth', () => ({
   useAuth: () => ({ profile: { tenant_id: 'tenant-1' } }),
 }));
 
-import { escapeSearch, useCreateCustomer } from '../customers';
+import { escapeSearch, useCreateCustomer, useCustomers } from '../customers';
 
 beforeAll(() => notifyManager.setScheduler((cb) => cb()));
 
@@ -33,6 +42,23 @@ test('escapeSearch neutralises LIKE wildcards and filter-syntax characters', () 
   expect(escapeSearch('a,b(%_)')).toBe('a\\,b\\(\\%\\_\\)');
   expect(escapeSearch('back\\slash')).toBe('back\\\\slash');
   expect(escapeSearch('plain')).toBe('plain');
+});
+
+test('escapeSearch strips * (PostgREST alias for %)', () => {
+  expect(escapeSearch('a*b')).toBe('ab');
+  expect(escapeSearch('***')).toBe('');
+});
+
+test('useCustomers passes the escaped term to .ilike', async () => {
+  mockIlike.mockClear();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+  const { result } = await renderHook(() => useCustomers('a,b(%*'), { wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockIlike).toHaveBeenCalledWith('name', '%a\\,b\\(\\%%');
+  expect(mockIlike).toHaveBeenCalledWith('phone', 'a\\,b\\(\\%%');
 });
 
 test('useCreateCustomer upserts with ignoreDuplicates each time, with the same id', async () => {

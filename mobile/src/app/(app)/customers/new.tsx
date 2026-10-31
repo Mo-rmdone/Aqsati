@@ -48,7 +48,7 @@ export default function NewCustomer() {
   }
 
   return (
-    <Screen title="عميل جديد">
+    <Screen title="عميل جديد" onBack={() => (router.canGoBack() ? router.back() : router.replace('/customers'))}>
       <Field label="الاسم" value={name} onChangeText={setName} error={errors.name} />
       <Field
         label="رقم الموبايل"

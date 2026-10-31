@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../lib/auth';
 import type { Tables } from '../lib/database.types';
@@ -16,13 +16,16 @@ const LIST_LIMIT = 50;
  * The term is only ever passed to typed .ilike() calls, never to .or().
  */
 export function escapeSearch(term: string): string {
-  return term.replace(/[\\%_,()]/g, (ch) => `\\${ch}`);
+  // `*` is PostgREST's alias for `%` in like/ilike values. It is stripped, not escaped:
+  // an escaped `\*` would still be rewritten to `\%`.
+  return term.replace(/\*/g, '').replace(/[\\%_,()]/g, (ch) => `\\${ch}`);
 }
 
 export function useCustomers(search: string) {
   const term = search.trim();
   return useQuery({
     queryKey: ['customers', term],
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<CustomerRow[]> => {
       if (!term) {
         const { data, error } = await supabase

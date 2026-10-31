@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { useCustomerContracts } from '../../../api/contracts';
+import { contractStatus, hasOpenBalance, useCustomerContracts } from '../../../api/contracts';
 import { useCustomer } from '../../../api/customers';
 import { Button } from '../../../ui/Button';
 import { Money } from '../../../ui/Money';
@@ -24,6 +24,7 @@ export default function CustomerFile() {
   const router = useRouter();
   const customer = useCustomer(id);
   const contracts = useCustomerContracts(id);
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/customers'));
 
   if (customer.isLoading) {
     return (
@@ -34,16 +35,16 @@ export default function CustomerFile() {
   }
   if (customer.error || !customer.data) {
     return (
-      <Screen title="ملف العميل">
+      <Screen title="ملف العميل" onBack={goBack}>
         <Text style={styles.error}>{customer.error ? 'تعذر تحميل العميل' : 'العميل غير موجود'}</Text>
       </Screen>
     );
   }
   const c = customer.data;
-  const hasRemaining = (contracts.data ?? []).some((k) => Number(k.remaining) > 0);
+  const hasRemaining = hasOpenBalance(contracts.data ?? []);
 
   return (
-    <Screen title={c.name}>
+    <Screen title={c.name} onBack={goBack}>
       <View style={styles.card}>
         <Row label="الموبايل">{c.phone}</Row>
         {c.national_id ? <Row label="الرقم القومي">{c.national_id}</Row> : null}
@@ -65,7 +66,7 @@ export default function CustomerFile() {
       {contracts.error ? <Text style={styles.error}>تعذر تحميل العقود</Text> : null}
       {contracts.data && contracts.data.length === 0 ? <Text style={styles.empty}>مفيش عقود لسه</Text> : null}
       {contracts.data?.map((k) => {
-        const settled = Number(k.remaining) === 0;
+        const status = contractStatus(k.remaining);
         return (
           <View key={k.contract_id} style={styles.card}>
             <Row label="رقم العقد">{String(k.contract_no)}</Row>
@@ -75,9 +76,12 @@ export default function CustomerFile() {
               <Money value={Number(k.paid)} />
             </Row>
             <Row label="الباقي">
-              <Money value={Number(k.remaining)} />
+              {k.remaining === null ? <Text style={styles.value}>غير معروف</Text> : <Money value={k.remaining} />}
             </Row>
-            <StatusChip label={settled ? 'مدفوع بالكامل' : 'جاري'} tone={settled ? 'success' : 'warning'} />
+            <StatusChip
+              label={status === 'settled' ? 'مدفوع بالكامل' : status === 'open' ? 'جاري' : 'غير معروف'}
+              tone={status === 'settled' ? 'success' : status === 'open' ? 'warning' : 'neutral'}
+            />
           </View>
         );
       })}
