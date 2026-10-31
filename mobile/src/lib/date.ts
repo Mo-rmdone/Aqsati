@@ -14,7 +14,8 @@ export function localDateISO(ts: string): string {
 /** "2026-12-01" -> "1 ديسمبر 2026" (Arabic month, Latin digits). Unparseable input is returned as-is; empty -> "—". */
 export function formatDateAr(iso: string): string {
   if (!iso) return '—';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  // A date, optionally followed by a time ("2026-12-01T…" / "2026-12-01 …"); anything else is not a date.
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:$|[T ])/.exec(iso);
   if (!m) return iso;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();

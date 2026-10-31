@@ -69,6 +69,7 @@ function WorkRow({ row, shopName }: { row: WorklistRow; shopName: string }) {
           />
         </View>
       </View>
+      {link === null ? <Text style={styles.hint}>رقم الموبايل مش صحيح، صلّحه عشان تبعت واتساب</Text> : null}
     </View>
   );
 }
@@ -130,6 +131,7 @@ const styles = StyleSheet.create({
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
   name: { ...type.title3, color: colors.ink, flexShrink: 1 },
   actions: { flexDirection: 'row', gap: space[2] },
+  hint: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
   empty: { ...type.body, color: colors.inkMuted, textAlign: 'center', paddingVertical: space[6] },
   error: { ...type.body, color: colors.error, textAlign: 'right' },
 });

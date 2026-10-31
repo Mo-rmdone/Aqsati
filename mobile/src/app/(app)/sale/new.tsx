@@ -185,7 +185,7 @@ export default function NewSale() {
   }
 
   return (
-    <Screen title="فاتورة جديدة">
+    <Screen title="فاتورة جديدة" onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
       {newCustomer ? (
         <View style={styles.newCustomer}>
           <View style={styles.newHead}>

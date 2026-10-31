@@ -26,3 +26,8 @@ test('localDateISO uses the local calendar day', () => {
   expect(localDateISO(d.toISOString())).toBe('2026-05-03');
   expect(localDateISO('garbage')).toBe('');
 });
+
+test('formatDateAr rejects trailing garbage after the date', () => {
+  expect(formatDateAr('2026-03-05garbage')).toBe('2026-03-05garbage');
+  expect(formatDateAr('2026-03-05 10:00')).toBe('5 مارس 2026');
+});
