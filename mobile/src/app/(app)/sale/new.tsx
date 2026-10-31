@@ -6,7 +6,10 @@ import { useCustomer, useCustomers } from '../../../api/customers';
 import {
   PAYMENT_METHODS,
   derivePreview,
+  idForAttempt,
   isValidDate,
+  normalizeDigits,
+  sanitizeAmount,
   todayISO,
   sanitizeRate,
   useCreateSale,
@@ -59,7 +62,8 @@ export default function NewSale() {
   const router = useRouter();
   const { customerId: paramCustomerId } = useLocalSearchParams<{ customerId?: string }>();
   // One id per form instance: a double tap or retry re-sends the same sale.
-  const idRef = useRef(newId());
+  // Same id for a pure retry; a new one once the form changed after an attempt.
+  const attemptRef = useRef<{ id: string; sig: string | null }>({ id: newId(), sig: null });
   const create = useCreateSale();
 
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
@@ -100,7 +104,8 @@ export default function NewSale() {
     setFailure(null);
     if (!customer || Object.keys(errors).length > 0 || dateError) return;
     try {
-      const id = await create.mutateAsync({ form, id: idRef.current });
+      attemptRef.current = idForAttempt(attemptRef.current, JSON.stringify(form), newId);
+      const id = await create.mutateAsync({ form, id: attemptRef.current.id });
       // /contract/[id] is built in Task 9.
       router.replace(`/contract/${id}` as never);
     } catch (e) {
@@ -134,7 +139,7 @@ export default function NewSale() {
       <Field
         label="السعر"
         value={price}
-        onChangeText={setPrice}
+        onChangeText={(v) => setPrice(sanitizeAmount(v))}
         keyboardType="decimal-pad"
         error={show('totalPrice')}
       />
@@ -146,7 +151,7 @@ export default function NewSale() {
 
       {saleType === 'installment' ? (
         <>
-          <Field label="المقدم" value={down} onChangeText={setDown} keyboardType="decimal-pad" error={show('down')} />
+          <Field label="المقدم" value={down} onChangeText={(v) => setDown(sanitizeAmount(v))} keyboardType="decimal-pad" error={show('down')} />
           <Field
             label="نسبة الفايدة %"
             value={rate}
@@ -168,7 +173,7 @@ export default function NewSale() {
       <Field
         label="تاريخ البيع (YYYY-MM-DD)"
         value={saleDate}
-        onChangeText={setSaleDate}
+        onChangeText={(v) => setSaleDate(normalizeDigits(v))}
         autoCapitalize="none"
         error={submitted ? dateError : undefined}
       />

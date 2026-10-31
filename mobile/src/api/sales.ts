@@ -29,22 +29,47 @@ export interface SaleForm {
   paymentMethod: PaymentMethod;
 }
 
+/** Arabic-Indic (٠-٩) and Persian (۰-۹) digits to Latin; Arabic decimal separator to '.'. */
+export function normalizeDigits(s: string): string {
+  return s
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/٫/g, '.');
+}
+
 /** NaN for empty / unparseable input. */
 export function parseAmount(s: string): number {
-  const t = s.replace(/,/g, '').trim();
+  const t = normalizeDigits(s).replace(/,/g, '').trim();
   if (t === '' || !/^\d*\.?\d*$/.test(t) || t === '.') return NaN;
   return Number(t);
 }
 
 /** Digits and one dot, at most 2 decimals: the preview rounds the rate to 0.01%, so must the input. */
 export function sanitizeRate(s: string): string {
-  const cleaned = s.replace(/[^\d.]/g, '');
+  const cleaned = normalizeDigits(s).replace(/[^\d.]/g, '');
   const dot = cleaned.indexOf('.');
   if (dot === -1) return cleaned;
   return cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '').slice(0, 2);
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Money inputs follow the rate rule (max 2 decimals) so the preview and numeric(14,2) agree. */
+export const sanitizeAmount = sanitizeRate;
+
+/**
+ * Idempotency id per save attempt. A pure retry (same form signature) re-sends the same id;
+ * editing after an earlier attempt gets a fresh id, else the server would return the old sale.
+ * `prev.sig` is null until the first attempt.
+ */
+export function idForAttempt(
+  prev: { id: string; sig: string | null },
+  sig: string,
+  gen: () => string,
+): { id: string; sig: string } {
+  if (prev.sig === null || prev.sig === sig) return { id: prev.id, sig };
+  return { id: gen(), sig };
+}
+
+const ISO_DATE =/^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidDate(s: string): boolean {
   if (!ISO_DATE.test(s)) return false;

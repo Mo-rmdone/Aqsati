@@ -1,5 +1,16 @@
 import { validateSale } from '../../lib/validation';
-import { derivePreview, parseAmount, sanitizeRate, toCreateSalePayload, type SaleForm } from '../sales';
+import {
+  derivePreview,
+  idForAttempt,
+  isValidDate,
+  normalizeDigits,
+  parseAmount,
+  sanitizeAmount,
+  sanitizeRate,
+  toCreateSalePayload,
+  validateSaleForm,
+  type SaleForm,
+} from '../sales';
 
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 
@@ -68,4 +79,49 @@ test('parseAmount and sanitizeRate', () => {
   expect(parseAmount('1,500.5')).toBe(1500.5);
   expect(sanitizeRate('12.345')).toBe('12.34');
   expect(sanitizeRate('1a2.5.6')).toBe('12.56');
+});
+
+test('isValidDate checks the calendar, not just the shape', () => {
+  expect(isValidDate('2026-02-30')).toBe(false);
+  expect(isValidDate('2026-13-01')).toBe(false);
+  expect(isValidDate('2028-02-29')).toBe(true);
+  expect(isValidDate('2026-02-29')).toBe(false);
+});
+
+test('derivePreview is null for an impossible date', () => {
+  expect(derivePreview({ ...base, saleDate: '2026-02-30' })).toBeNull();
+});
+
+test('empty down in an installment form sends down_payment 0', () => {
+  expect(toCreateSalePayload({ ...base, down: '' }, 'i')).toMatchObject({ down_payment: 0 });
+});
+
+test('years outside 1-5 are rejected and give no preview', () => {
+  for (const years of [0, 6]) {
+    expect(validateSaleForm({ ...base, years }).years).toBe('عدد السنين لازم يكون من 1 إلى 5');
+    expect(derivePreview({ ...base, years })).toBeNull();
+  }
+});
+
+test('amounts are limited to 2 decimals', () => {
+  expect(sanitizeAmount('100.999')).toBe('100.99');
+  expect(sanitizeAmount('1,0a0.5')).toBe('100.5');
+});
+
+test('Arabic-Indic digits are normalized everywhere', () => {
+  expect(normalizeDigits('٢٠٢٦-١١-٠١')).toBe('2026-11-01');
+  expect(sanitizeAmount('٢٥٠٠٠٫٥٥٥')).toBe('25000.55');
+  expect(sanitizeRate('٣٠٫٥')).toBe('30.5');
+  expect(parseAmount('١٠٠٠٠')).toBe(10000);
+});
+
+test('idForAttempt: same id for a pure retry, new id once the form changed after an attempt', () => {
+  let n = 0;
+  const gen = () => `new-${++n}`;
+  const first = idForAttempt({ id: 'a', sig: null }, 'S1', gen);
+  expect(first).toEqual({ id: 'a', sig: 'S1' });
+  expect(idForAttempt(first, 'S1', gen).id).toBe('a');
+  const edited = idForAttempt(first, 'S2', gen);
+  expect(edited.id).toBe('new-1');
+  expect(idForAttempt(edited, 'S2', gen).id).toBe('new-1');
 });
