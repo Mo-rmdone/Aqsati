@@ -1,8 +1,9 @@
+import { ChevronRight } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, font, spacing } from './theme';
+import { colors, size, space, type } from './theme';
 
 export function Screen({
   title,
@@ -17,12 +18,24 @@ export function Screen({
 }) {
   const body = (
     <>
-      {onBack ? (
-        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8} style={styles.back}>
-          <Text style={styles.backText}>رجوع</Text>
-        </Pressable>
+      {onBack || title ? (
+        <View style={styles.bar}>
+          {onBack ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="رجوع"
+              onPress={onBack}
+              hitSlop={8}
+              style={styles.back}
+            >
+              {/* RTL: "back" points to the start edge, i.e. right. */}
+              <ChevronRight size={size.iconMd} color={colors.brand} />
+              <Text style={styles.backText}>رجوع</Text>
+            </Pressable>
+          ) : null}
+          {title ? <Text style={styles.title}>{title}</Text> : null}
+        </View>
       ) : null}
-      {title ? <Text style={styles.title}>{title}</Text> : null}
       {children}
     </>
   );
@@ -40,9 +53,24 @@ export function Screen({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.md, gap: spacing.md, flexGrow: 1 },
-  back: { alignSelf: 'flex-end', paddingVertical: spacing.xs },
-  backText: { fontSize: font.body, color: colors.primary, fontWeight: '600' },
-  title: { fontSize: font.title, fontWeight: '700', color: colors.text, textAlign: 'right' },
+  root: { flex: 1, backgroundColor: colors.paper },
+  // Web/tablet: the app is one centered phone-width column.
+  content: {
+    padding: size.gutter,
+    gap: space[4],
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: size.columnMax,
+    alignSelf: 'center',
+  },
+  bar: { gap: space[1] },
+  back: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1],
+    minHeight: size.tapMin,
+  },
+  backText: { ...type.label, color: colors.brand },
+  title: { ...type.title2, color: colors.ink, textAlign: 'right' },
 });

@@ -7,7 +7,8 @@ import { AuthProvider, useAuth } from '../lib/auth';
 import { QueryCacheGuard } from '../lib/QueryCacheGuard';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { Button } from '../ui/Button';
-import { colors, font, spacing } from '../ui/theme';
+import { useBrandFonts } from '../ui/fonts';
+import { colors, size, spacing, type } from '../ui/theme';
 
 // Arabic-first app: force RTL on native (takes effect after a reload). On web the
 // export is a single-page app (+html.tsx is not used), so set dir/lang at runtime.
@@ -78,11 +79,13 @@ function Gate() {
 
   if (!session && !inAuth) return <Redirect href="/login" />;
   if (session && profile && inAuth) return <Redirect href="/" />;
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }} />;
 }
 
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
+  const fontsReady = useBrandFonts();
+  if (!fontsReady) return <View style={styles.centered} />;
   if (!isSupabaseConfigured) return <NotConfigured />;
   return (
     <QueryClientProvider client={queryClient}>
@@ -103,7 +106,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.bg,
   },
-  heading: { fontSize: font.title, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  body: { fontSize: font.body, color: colors.muted, textAlign: 'center', maxWidth: 420 },
+  heading: { ...type.title2, color: colors.ink, textAlign: 'center' },
+  body: { ...type.body, color: colors.inkMuted, textAlign: 'center', maxWidth: size.columnMax - 60 },
   actions: { gap: spacing.sm, alignSelf: 'stretch', maxWidth: 320 },
 });

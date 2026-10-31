@@ -16,12 +16,13 @@ import {
   type SaleForm,
 } from '../../../api/sales';
 import { useAttempt } from '../../../lib/attempt';
+import { formatDateAr } from '../../../lib/date';
 import { formatEGP } from '../../../lib/money';
 import { Button } from '../../../ui/Button';
 import { Field } from '../../../ui/Field';
 import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
-import { colors, font, radius, spacing } from '../../../ui/theme';
+import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -194,11 +195,14 @@ export default function NewSale() {
 
       {preview ? (
         <View style={styles.preview} accessibilityLabel="معاينة الأقساط">
-          <PreviewRow label="الباقي" value={<Money value={preview.financed} />} />
+          <View style={styles.hero}>
+            <Text style={styles.heroLabel}>القسط الشهري</Text>
+            <Money value={preview.monthly} style={styles.heroValue} />
+            <Text style={styles.heroSub}>{`× ${preview.count} شهر`}</Text>
+          </View>
+          <PreviewRow label="الباقي بعد المقدم" value={<Money value={preview.financed} />} />
           <PreviewRow label="الإجمالي بعد الفايدة" value={<Money value={preview.total} />} />
-          <PreviewRow label="القسط الشهري" value={<Money value={preview.monthly} />} />
-          <PreviewRow label="عدد الأقساط" value={<Text style={styles.previewValue}>{preview.count}</Text>} />
-          <PreviewRow label="أول قسط" value={<Text style={styles.previewValue}>{preview.firstDue}</Text>} />
+          <PreviewRow label="أول قسط" value={<Text style={styles.previewValue}>{formatDateAr(preview.firstDue)}</Text>} />
           {preview.last !== preview.monthly ? (
             <PreviewRow label="القسط الأخير" value={<Text style={styles.previewValue}>{formatEGP(preview.last)}</Text>} />
           ) : null}
@@ -232,41 +236,58 @@ function PreviewRow({ label, value }: { label: string; value: React.ReactNode })
 }
 
 const styles = StyleSheet.create({
-  group: { gap: spacing.xs },
-  label: { fontSize: font.small, color: colors.muted, textAlign: 'right' },
+  group: { gap: space[2] },
+  label: { ...type.label, color: colors.ink, textAlign: 'right' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: size.tapLg,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-  },
-  rowName: { fontSize: font.body, color: colors.text, fontWeight: '600' },
-  rowPhone: { fontSize: font.small, color: colors.muted },
-  link: { color: colors.primary, fontSize: font.body },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: font.body, color: colors.text },
-  chipTextOn: { color: colors.primaryText, fontWeight: '600' },
-  preview: {
-    backgroundColor: colors.successBg,
+    borderColor: colors.line,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    paddingHorizontal: space[4],
+    gap: space[3],
   },
-  previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  previewLabel: { fontSize: font.body, color: colors.muted },
-  previewValue: { fontSize: font.body, color: colors.text, writingDirection: 'ltr' },
-  error: { color: colors.danger, fontSize: font.body, textAlign: 'right' },
+  rowName: { ...type.bodyStrong, color: colors.ink },
+  rowPhone: { ...type.helper, color: colors.inkMuted, writingDirection: 'ltr' },
+  link: { ...type.label, color: colors.brand, paddingVertical: space[2] },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  chip: {
+    minHeight: size.tapMin,
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.surface,
+  },
+  chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  chipText: { ...type.label, color: colors.ink },
+  chipTextOn: { color: colors.brand },
+  preview: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: space[4],
+    gap: space[3],
+    ...shadow.card,
+  },
+  // The monthly installment is the loudest thing on this screen.
+  hero: {
+    backgroundColor: colors.coinSoft,
+    borderRadius: radius.md,
+    paddingVertical: space[4],
+    alignItems: 'center',
+    gap: space[1],
+  },
+  heroLabel: { ...type.label, color: colors.inkMuted },
+  heroValue: { ...type.displayMoney, color: colors.brand },
+  heroSub: { ...type.bodyStrong, color: colors.ink },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
+  previewLabel: { ...type.body, color: colors.inkMuted },
+  previewValue: { ...type.bodyStrong, color: colors.ink },
+  error: { ...type.body, color: colors.error, textAlign: 'right' },
 });

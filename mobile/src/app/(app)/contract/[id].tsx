@@ -10,13 +10,13 @@ import { Button } from '../../../ui/Button';
 import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
 import { StatusChip, type Tone } from '../../../ui/StatusChip';
-import { colors, font, radius, spacing } from '../../../ui/theme';
+import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
 
 const INSTALLMENT_STATUS: Record<string, { label: string; tone: Tone }> = {
-  paid: { label: 'مدفوع', tone: 'success' },
-  partial: { label: 'جزئي', tone: 'warning' },
-  overdue: { label: 'متأخر', tone: 'danger' },
-  pending: { label: 'لسه', tone: 'neutral' },
+  paid: { label: 'مدفوع', tone: 'paid' },
+  partial: { label: 'جزئي', tone: 'partial' },
+  overdue: { label: 'متأخر', tone: 'overdue' },
+  pending: { label: 'مستحق', tone: 'due' },
 };
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -37,7 +37,7 @@ export default function ContractDetail() {
   if (q.isLoading) {
     return (
       <Screen title="العقد" onBack={goBack}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.brand} />
       </Screen>
     );
   }
@@ -70,7 +70,7 @@ export default function ContractDetail() {
         </Row>
         <StatusChip
           label={status === 'settled' ? 'مدفوع بالكامل' : status === 'open' ? 'جاري' : 'غير معروف'}
-          tone={status === 'settled' ? 'success' : status === 'open' ? 'warning' : 'neutral'}
+          tone={status === 'settled' ? 'paid' : status === 'open' ? 'due' : 'unknown'}
         />
       </View>
 
@@ -85,7 +85,7 @@ export default function ContractDetail() {
         <>
           <Text style={styles.heading}>الأقساط</Text>
           <View style={styles.card}>
-            <View style={styles.tr}>
+            <View style={[styles.tr, styles.thead]}>
               {['رقم', 'الميعاد', 'المستحق', 'المدفوع', 'الحالة'].map((h) => (
                 <Text key={h} style={[styles.th, styles.cell]}>
                   {h}
@@ -93,7 +93,7 @@ export default function ContractDetail() {
               ))}
             </View>
             {installments.map((i) => {
-              const s = INSTALLMENT_STATUS[i.status] ?? { label: i.status, tone: 'neutral' as Tone };
+              const s = INSTALLMENT_STATUS[i.status] ?? { label: 'غير معروف', tone: 'unknown' as Tone };
               return (
                 <View key={i.id} style={styles.tr}>
                   <Text style={styles.cell}>{i.seq_no}</Text>
@@ -124,7 +124,7 @@ export default function ContractDetail() {
           </Row>
           <Row label="الطريقة">{PAYMENT_METHODS.find((m) => m.value === p.method)?.label ?? p.method}</Row>
           <Row label="التاريخ">{formatDateAr(localDateISO(p.received_at))}</Row>
-          {p.edited_at ? <StatusChip label="اتعدّلت" tone="warning" /> : null}
+          {p.edited_at ? <StatusChip label="اتعدّلت" tone="edited" /> : null}
           {p.editable ? (
             <Pressable accessibilityRole="button" onPress={() => router.push(`/payment/${p.id}/edit`)}>
               <Text style={styles.link}>تعديل</Text>
@@ -140,21 +140,23 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: space[4],
+    gap: space[3],
+    ...shadow.card,
   },
-  row: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
-  label: { fontSize: font.small, color: colors.muted },
-  value: { fontSize: font.body, color: colors.text, flexShrink: 1, textAlign: 'right' },
-  heading: { fontSize: font.heading, fontWeight: '700', color: colors.text, textAlign: 'right' },
-  empty: { color: colors.muted, textAlign: 'center', fontSize: font.body },
-  error: { color: colors.danger, textAlign: 'center', fontSize: font.body },
-  link: { color: colors.primary, fontSize: font.body, fontWeight: '600', textAlign: 'right' },
-  tr: { flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.xs },
-  cell: { flex: 1, fontSize: font.small, color: colors.text, textAlign: 'center' },
-  th: { color: colors.muted, fontWeight: '600' },
-  ltr: { writingDirection: 'ltr' },
-  small: { fontSize: font.small },
+  // 'row' follows the writing direction (RTL on web via dir="rtl", on native via forceRTL).
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[4] },
+  label: { ...type.helper, color: colors.inkMuted },
+  value: { ...type.bodyStrong, color: colors.ink, flexShrink: 1, textAlign: 'right' },
+  heading: { ...type.title3, color: colors.ink, textAlign: 'right' },
+  empty: { ...type.body, color: colors.inkMuted, textAlign: 'center' },
+  error: { ...type.body, color: colors.error, textAlign: 'center' },
+  link: { ...type.label, color: colors.brand, textAlign: 'right', paddingVertical: space[3] },
+  tr: { flexDirection: 'row', alignItems: 'center', gap: space[1], minHeight: size.tapMin },
+  thead: { backgroundColor: colors.surfaceSunken, borderRadius: radius.sm },
+  cell: { flex: 1, ...type.helper, color: colors.ink, textAlign: 'center', alignItems: 'center' },
+  th: { ...type.chip, color: colors.inkMuted },
+  small: { ...type.helper },
 });

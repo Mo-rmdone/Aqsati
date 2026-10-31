@@ -8,7 +8,7 @@ import { Button } from '../../../../ui/Button';
 import { Money } from '../../../../ui/Money';
 import { Screen } from '../../../../ui/Screen';
 import { StatusChip } from '../../../../ui/StatusChip';
-import { colors, font, radius, spacing } from '../../../../ui/theme';
+import { colors, radius, shadow, space, type } from '../../../../ui/theme';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -49,7 +49,7 @@ export default function CustomerFile() {
         <Row label="الموبايل">{c.phone}</Row>
         {c.national_id ? <Row label="الرقم القومي">{c.national_id}</Row> : null}
         {c.address ? <Row label="العنوان">{c.address}</Row> : null}
-        {c.blacklist_flag ? <StatusChip label="قائمة سوداء" tone="danger" /> : null}
+        {c.blacklist_flag ? <StatusChip label="قائمة سوداء" tone="error" /> : null}
       </View>
 
       <Button title="فاتورة جديدة" onPress={() => router.push(`/sale/new?customerId=${id}`)} />
@@ -80,7 +80,7 @@ export default function CustomerFile() {
             </Row>
             <StatusChip
               label={status === 'settled' ? 'مدفوع بالكامل' : status === 'open' ? 'جاري' : 'غير معروف'}
-              tone={status === 'settled' ? 'success' : status === 'open' ? 'warning' : 'neutral'}
+              tone={status === 'settled' ? 'paid' : status === 'open' ? 'due' : 'unknown'}
             />
           </View>
         );
@@ -93,15 +93,17 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: space[4],
+    gap: space[3],
+    ...shadow.card,
   },
-  row: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
-  label: { fontSize: font.small, color: colors.muted },
-  value: { fontSize: font.body, color: colors.text, flexShrink: 1, textAlign: 'right' },
-  heading: { fontSize: font.heading, fontWeight: '700', color: colors.text, textAlign: 'right' },
-  empty: { color: colors.muted, textAlign: 'center', fontSize: font.body },
-  error: { color: colors.danger, textAlign: 'center', fontSize: font.body },
+  // 'row' follows the writing direction (RTL on web via dir="rtl", on native via forceRTL).
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[4] },
+  label: { ...type.helper, color: colors.inkMuted },
+  value: { ...type.bodyStrong, color: colors.ink, flexShrink: 1, textAlign: 'right' },
+  heading: { ...type.title3, color: colors.ink, textAlign: 'right' },
+  empty: { ...type.body, color: colors.inkMuted, textAlign: 'center' },
+  error: { ...type.body, color: colors.error, textAlign: 'center' },
 });

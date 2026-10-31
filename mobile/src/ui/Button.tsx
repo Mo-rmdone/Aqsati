@@ -1,6 +1,15 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, font, radius, spacing } from './theme';
+import { colors, radius, size, space, type } from './theme';
+
+type Variant = 'primary' | 'secondary' | 'danger' | 'coin';
+
+const palette: Record<Variant, { bg: string; pressed: string; fg: string; border?: string }> = {
+  primary: { bg: colors.brand, pressed: colors.brandStrong, fg: colors.onBrand },
+  secondary: { bg: colors.surface, pressed: colors.brandSoft, fg: colors.brand, border: colors.brand },
+  danger: { bg: colors.error, pressed: colors.error, fg: colors.onError },
+  coin: { bg: colors.coin, pressed: colors.coin, fg: colors.onCoin },
+};
 
 export function Button({
   title,
@@ -13,22 +22,27 @@ export function Button({
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'primary' | 'secondary';
+  variant?: Variant;
 }) {
   const inactive = loading || disabled;
-  const primary = variant === 'primary';
+  const p = palette[variant];
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
       onPress={onPress}
-      style={[styles.base, primary ? styles.primary : styles.secondary, inactive && styles.inactive]}
+      style={({ pressed }) => [
+        styles.base,
+        { backgroundColor: pressed ? p.pressed : p.bg },
+        p.border ? { borderWidth: 1.5, borderColor: p.border } : null,
+        inactive && styles.inactive,
+      ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? colors.primaryText : colors.primary} />
+        <ActivityIndicator color={p.fg} />
       ) : (
-        <Text style={[styles.text, { color: primary ? colors.primaryText : colors.primary }]}>{title}</Text>
+        <Text style={[styles.text, { color: p.fg }]}>{title}</Text>
       )}
     </Pressable>
   );
@@ -36,14 +50,12 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    borderRadius: radius.sm,
+    minHeight: size.tapLg,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space[5],
   },
-  primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
-  inactive: { opacity: 0.6 },
-  text: { fontSize: font.body, fontWeight: '600' },
+  inactive: { opacity: 0.55 },
+  text: { ...type.label },
 });

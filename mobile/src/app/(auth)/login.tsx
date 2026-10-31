@@ -1,6 +1,6 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '../../lib/auth';
 import { authErrorMessage } from '../../lib/authErrors';
@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
 import { Screen } from '../../ui/Screen';
-import { colors, font } from '../../ui/theme';
+import { colors, space, type } from '../../ui/theme';
 
 export default function Login() {
   const { refreshProfile } = useAuth();
@@ -41,7 +41,17 @@ export default function Login() {
   }
 
   return (
-    <Screen title="تسجيل الدخول">
+    <Screen>
+      <View style={styles.brand}>
+        <Image
+          source={require('../../../assets/images/logo-lockup.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="نوتة | Notah"
+        />
+        <Text style={styles.tagline}>نوتة الأقساط بتاعتك، بتحسب وبتفتكر عنك</Text>
+      </View>
+      <Text style={styles.title}>تسجيل الدخول</Text>
       <Field
         label="البريد الإلكتروني"
         value={email}
@@ -68,6 +78,10 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  error: { color: colors.danger, fontSize: font.small, textAlign: 'right' },
-  link: { color: colors.primary, fontSize: font.body, textAlign: 'center' },
+  brand: { alignItems: 'center', gap: space[3], paddingTop: space[10], paddingBottom: space[6] },
+  logo: { width: 240, height: 61 },
+  tagline: { ...type.body, color: colors.inkMuted, textAlign: 'center' },
+  title: { ...type.title2, color: colors.ink, textAlign: 'right' },
+  error: { ...type.helper, color: colors.error, textAlign: 'right' },
+  link: { ...type.label, color: colors.brand, textAlign: 'center', paddingVertical: space[3] },
 });
