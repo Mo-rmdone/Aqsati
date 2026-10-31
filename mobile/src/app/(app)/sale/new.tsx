@@ -1,8 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { UserPlus } from 'lucide-react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCustomer, useCustomers } from '../../../api/customers';
+import {
+  EMPTY_CUSTOMER,
+  findCustomerByPhone,
+  prefillFromSearch,
+  useCreateCustomer,
+  useCustomer,
+  useCustomers,
+  type NewCustomerForm,
+} from '../../../api/customers';
 import {
   PAYMENT_METHODS,
   derivePreview,
@@ -17,6 +26,8 @@ import {
 } from '../../../api/sales';
 import { useAttempt } from '../../../lib/attempt';
 import { formatDateAr } from '../../../lib/date';
+import { newId } from '../../../lib/ids';
+import { validateCustomer } from '../../../lib/validation';
 import { formatEGP } from '../../../lib/money';
 import { Button } from '../../../ui/Button';
 import { Field } from '../../../ui/Field';
@@ -37,7 +48,13 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
   );
 }
 
-function CustomerPicker({ onPick }: { onPick: (c: { id: string; name: string }) => void }) {
+function CustomerPicker({
+  onPick,
+  onNew,
+}: {
+  onPick: (c: { id: string; name: string }) => void;
+  onNew: (prefill: NewCustomerForm) => void;
+}) {
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   useEffect(() => {
@@ -48,12 +65,16 @@ function CustomerPicker({ onPick }: { onPick: (c: { id: string; name: string }) 
   return (
     <View style={styles.group}>
       <Field label="العميل" placeholder="ابحث بالاسم أو الموبايل" value={search} onChangeText={setSearch} />
-      {(data ?? []).slice(0, 8).map((c) => (
+      {(term.trim() ? (data ?? []) : []).slice(0, 6).map((c) => (
         <Pressable key={c.id} accessibilityRole="button" onPress={() => onPick(c)} style={styles.row}>
           <Text style={styles.rowName}>{c.name}</Text>
           <Text style={styles.rowPhone}>{c.phone}</Text>
         </Pressable>
       ))}
+      <Pressable accessibilityRole="button" onPress={() => onNew(prefillFromSearch(search))} style={styles.newRow}>
+        <UserPlus size={size.iconMd} color={colors.brand} />
+        <Text style={styles.newRowText}>عميل جديد</Text>
+      </Pressable>
     </View>
   );
 }
@@ -66,9 +87,20 @@ export default function NewSale() {
   const attempt = useAttempt();
   const create = useCreateSale();
 
+  const createCustomer = useCreateCustomer();
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
   const param = useCustomer(paramCustomerId ?? '');
-  const customer = picked ?? (paramCustomerId && param.data ? { id: param.data.id, name: param.data.name } : null);
+  // A customer typed in here is created together with the invoice — there is no
+  // separate "add customer" step. Its id is fixed per form so a retry never duplicates it.
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
+  const newCustomerId = useRef(newId());
+  const [customerErrors, setCustomerErrors] = useState<ReturnType<typeof validateCustomer>>({});
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const customer = newCustomer
+    ? { id: newCustomerId.current, name: newCustomer.name }
+    : (picked ?? (paramCustomerId && param.data ? { id: param.data.id, name: param.data.name } : null));
+  const setNc = (patch: Partial<NewCustomerForm>) => setNewCustomer((c) => ({ ...(c ?? EMPTY_CUSTOMER), ...patch }));
 
   const [productDesc, setProductDesc] = useState('');
   const [price, setPrice] = useState('');
@@ -101,6 +133,10 @@ export default function NewSale() {
 
   function resetForm() {
     setPicked(null);
+    setNewCustomer(null);
+    newCustomerId.current = newId();
+    setCustomerErrors({});
+    setDuplicate(null);
     setProductDesc('');
     setPrice('');
     setSaleType('installment');
@@ -114,24 +150,78 @@ export default function NewSale() {
     setFailure(null);
   }
 
-  async function save() {
+  async function save(skipDuplicateCheck = false) {
     setSubmitted(true);
     setFailure(null);
-    if (!customer || Object.keys(errors).length > 0 || dateError) return;
+    const cErrors = newCustomer ? validateCustomer(newCustomer) : {};
+    setCustomerErrors(cErrors);
+    if (!customer || Object.keys(cErrors).length > 0 || Object.keys(errors).length > 0 || dateError) return;
+    setBusy(true);
     try {
-      const id = await create.mutateAsync({ form, id: attempt.idFor(JSON.stringify(form)) });
+      if (newCustomer) {
+        if (!skipDuplicateCheck) {
+          const dup = await findCustomerByPhone(newCustomer.phone);
+          if (dup && dup.id !== newCustomerId.current) {
+            setDuplicate(dup);
+            return;
+          }
+        }
+        // Idempotent upsert on the fixed id: safe to repeat if the sale step fails.
+        await createCustomer.mutateAsync({ id: newCustomerId.current, ...newCustomer });
+      }
+      const id = await create.mutateAsync({
+        form,
+        id: attempt.idFor(JSON.stringify({ form, newCustomer })),
+      });
       attempt.reset();
       resetForm();
       router.replace(`/contract/${id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : (e as { message?: string } | null)?.message;
       setFailure(msg && /[؀-ۿ]/.test(msg) ? msg : 'تعذر حفظ الفاتورة، حاول مرة تانية');
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <Screen title="فاتورة جديدة">
-      {customer ? (
+      {newCustomer ? (
+        <View style={styles.newCustomer}>
+          <View style={styles.newHead}>
+            <Text style={styles.sectionTitle}>عميل جديد</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setNewCustomer(null);
+                setDuplicate(null);
+                setCustomerErrors({});
+              }}
+            >
+              <Text style={styles.link}>اختار عميل موجود</Text>
+            </Pressable>
+          </View>
+          <Field label="اسم العميل" value={newCustomer.name} onChangeText={(v) => setNc({ name: v })} error={customerErrors.name} />
+          <Field
+            label="رقم الموبايل"
+            value={newCustomer.phone}
+            onChangeText={(v) => {
+              setNc({ phone: normalizeDigits(v) });
+              setDuplicate(null);
+            }}
+            keyboardType="phone-pad"
+            error={customerErrors.phone}
+          />
+          <Field
+            label="الرقم القومي (اختياري)"
+            value={newCustomer.nationalId}
+            onChangeText={(v) => setNc({ nationalId: normalizeDigits(v) })}
+            keyboardType="number-pad"
+            error={customerErrors.nationalId}
+          />
+          <Field label="العنوان (اختياري)" value={newCustomer.address} onChangeText={(v) => setNc({ address: v })} />
+        </View>
+      ) : customer ? (
         <View style={styles.group}>
           <Text style={styles.label}>العميل</Text>
           <View style={styles.row}>
@@ -145,8 +235,8 @@ export default function NewSale() {
         </View>
       ) : paramCustomerId && param.isLoading ? null : (
         <>
-          <CustomerPicker onPick={setPicked} />
-          {submitted ? <Text style={styles.error}>اختار العميل الأول</Text> : null}
+          <CustomerPicker onPick={setPicked} onNew={setNewCustomer} />
+          {submitted ? <Text style={styles.error}>اختار العميل أو اضغط "عميل جديد"</Text> : null}
         </>
       )}
 
@@ -220,8 +310,24 @@ export default function NewSale() {
         </View>
       </View>
 
+      {duplicate ? (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>{`فيه عميل بنفس الرقم ده: ${duplicate.name}`}</Text>
+          <Button
+            title={`الفاتورة لـ ${duplicate.name}`}
+            onPress={() => {
+              setPicked(duplicate);
+              setNewCustomer(null);
+              setDuplicate(null);
+            }}
+          />
+          <Button title="لأ، ده عميل تاني" variant="secondary" loading={busy} onPress={() => save(true)} />
+        </View>
+      ) : null}
       {failure ? <Text style={styles.error}>{failure}</Text> : null}
-      <Button title="حفظ الفاتورة" loading={create.isPending} onPress={save} />
+      {duplicate ? null : (
+        <Button title="حفظ الفاتورة" loading={busy || create.isPending} onPress={() => save()} />
+      )}
     </Screen>
   );
 }
@@ -290,4 +396,30 @@ const styles = StyleSheet.create({
   previewLabel: { ...type.body, color: colors.inkMuted },
   previewValue: { ...type.bodyStrong, color: colors.ink },
   error: { ...type.body, color: colors.error, textAlign: 'right' },
+  newRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    minHeight: size.tapLg,
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  newRowText: { ...type.label, color: colors.brand },
+  newCustomer: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: space[4],
+    gap: space[3],
+    ...shadow.card,
+  },
+  newHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
+  sectionTitle: { ...type.title3, color: colors.ink },
+  banner: { backgroundColor: colors.dueBg, borderRadius: radius.lg, padding: space[4], gap: space[3] },
+  bannerText: { ...type.bodyStrong, color: colors.due, textAlign: 'right' },
 });

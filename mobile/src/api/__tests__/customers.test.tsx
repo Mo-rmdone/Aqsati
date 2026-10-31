@@ -22,7 +22,7 @@ jest.mock('../../lib/auth', () => ({
   useAuth: () => ({ profile: { tenant_id: 'tenant-1' } }),
 }));
 
-import { escapeSearch, useCreateCustomer, useCustomers } from '../customers';
+import { customerSelect, escapeSearch, prefillFromSearch, useCreateCustomer, useCustomers } from '../customers';
 
 beforeAll(() => notifyManager.setScheduler((cb) => cb()));
 
@@ -99,4 +99,16 @@ test('useCreateCustomer surfaces a server error', async () => {
       await result.current.mutateAsync({ id: 'c-2', name: 'x', phone: '01012345678' });
     }),
   ).rejects.toThrow('boom');
+});
+
+test('customers screen lists only customers with invoices; the invoice picker searches everyone', () => {
+  expect(customerSelect(true)).toBe('id, name, phone, contract!inner(id)');
+  expect(customerSelect(false)).toBe('id, name, phone');
+});
+
+test('"عميل جديد" from the invoice search prefills phone for digits, name otherwise', () => {
+  expect(prefillFromSearch('٠١٠١٢٣٤٥٦٧٨')).toEqual({ name: '', phone: '01012345678', nationalId: '', address: '' });
+  expect(prefillFromSearch(' 010 123 ')).toMatchObject({ name: '', phone: '010123' });
+  expect(prefillFromSearch('محمود')).toMatchObject({ name: 'محمود', phone: '' });
+  expect(prefillFromSearch('')).toMatchObject({ name: '', phone: '' });
 });
