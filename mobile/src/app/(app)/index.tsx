@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native
 
 import { useCollectionsKpi, useWorklist, type WorklistRow } from '../../api/dashboard';
 import { useAuth } from '../../lib/auth';
+import { formatDateAr } from '../../lib/date';
 import { reminderMessage, whatsappLink } from '../../lib/whatsapp';
 import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
@@ -19,9 +20,9 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: 'da
 }
 
 function lateText(days: number | null, due: string | null): string {
-  if (days !== null && days > 0) return `متأخر ${days} يوم`;
+  if (days !== null && days > 0) return `متأخر ${days} يوم (من ${formatDateAr(due ?? '')})`;
   if (days === 0) return 'مستحق النهارده';
-  return due ? `يستحق ${due}` : '';
+  return due ? `يستحق ${formatDateAr(due)}` : '';
 }
 
 function WorkRow({ row, shopName }: { row: WorklistRow; shopName: string }) {
@@ -30,7 +31,7 @@ function WorkRow({ row, shopName }: { row: WorklistRow; shopName: string }) {
   const link = row.phone
     ? whatsappLink(
         row.phone,
-        reminderMessage({ customer: name, amount: row.amount ?? 0, dueDate: row.due_date ?? '', merchant: shopName }),
+        reminderMessage({ customer: name, amount: row.amount ?? 0, dueDate: formatDateAr(row.due_date ?? ''), merchant: shopName }),
       )
     : null;
   const overdue = (row.days_late ?? 0) > 0;
@@ -42,7 +43,6 @@ function WorkRow({ row, shopName }: { row: WorklistRow; shopName: string }) {
       </View>
       <Text style={[styles.sub, overdue && { color: colors.danger }]}>
         {lateText(row.days_late, row.due_date)}
-        {row.due_date ? `  ·  ${row.due_date}` : ''}
       </Text>
       <View style={styles.actions}>
         <View style={{ flex: 1 }}>
