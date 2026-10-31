@@ -1,4 +1,27 @@
-import { isPaymentEditable, openInstallmentContracts, toPaymentLines } from '../payments';
+import { editableContracts, isPaymentEditable, openInstallmentContracts, toPaymentLines } from '../payments';
+
+const bal = (id: string, remaining: number | null, sale_type = 'installment') =>
+  ({ contract_id: id, remaining, sale_type, product_desc: `p${id}`, contract_no: 7 }) as never;
+
+describe('editableContracts', () => {
+  test('own contract gets remaining + line; other open contract gets its remaining', () => {
+    const r = editableContracts([{ contract_id: 'a', amount: 100 }], [bal('a', 50), bal('b', 70)]);
+    expect(r.map((x) => [x.contractId, x.remaining])).toEqual([['a', 150], ['b', 70]]);
+  });
+  test('settled own contract still appears with remaining = line; settled/cash/unknown others excluded', () => {
+    const r = editableContracts(
+      [{ contract_id: 'a', amount: 100 }],
+      [bal('a', 0), bal('b', 0), bal('c', null), bal('d', 5, 'cash')],
+    );
+    expect(r.map((x) => [x.contractId, x.remaining])).toEqual([['a', 100]]);
+  });
+  test('null remaining on own contract falls back to the line amount', () => {
+    expect(editableContracts([{ contract_id: 'a', amount: 40 }], [bal('a', null)])[0].remaining).toBe(40);
+  });
+  test('payment contract missing from balances throws', () => {
+    expect(() => editableContracts([{ contract_id: 'zz', amount: 1 }], [bal('a', 5)])).toThrow();
+  });
+});
 
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 

@@ -17,6 +17,38 @@ export function openInstallmentContracts(rows: ContractBalance[], preferId?: str
   return [...first, ...open.filter((r) => r.contract_id !== preferId)];
 }
 
+export interface EditableContract {
+  contractId: string;
+  title: string;
+  remaining: number;
+}
+
+const contractTitle = (c: ContractBalance) => `${c.product_desc ?? ''} (عقد ${c.contract_no})`;
+
+/**
+ * Contracts an edited payment can be spread over: its own contracts (even if now settled; remaining =
+ * current remaining + its own line) followed by the customer's other open installment contracts.
+ * Throws when one of the payment's contracts is missing from the balances.
+ */
+export function editableContracts(
+  paymentLines: { contract_id: string; amount: number }[],
+  balances: ContractBalance[],
+): EditableContract[] {
+  const own = new Map<string, number>();
+  for (const l of paymentLines) own.set(l.contract_id, (own.get(l.contract_id) ?? 0) + Number(l.amount));
+  const result: EditableContract[] = [];
+  for (const [id, line] of own) {
+    const row = balances.find((b) => b.contract_id === id);
+    if (!row) throw new Error(`contract ${id} missing from balances`);
+    result.push({ contractId: id, title: contractTitle(row), remaining: (row.remaining ?? 0) + line });
+  }
+  for (const row of openInstallmentContracts(balances)) {
+    const id = row.contract_id as string;
+    if (!own.has(id)) result.push({ contractId: id, title: contractTitle(row), remaining: Number(row.remaining) });
+  }
+  return result;
+}
+
 export function toPaymentLines(lines: PaymentLineInput[]) {
   return lines
     .filter((l) => Number.isFinite(l.amount) && l.amount > 0)

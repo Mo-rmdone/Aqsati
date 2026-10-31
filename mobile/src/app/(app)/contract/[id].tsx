@@ -35,7 +35,7 @@ export default function ContractDetail() {
 
   if (q.isLoading) {
     return (
-      <Screen>
+      <Screen title="العقد" onBack={goBack}>
         <ActivityIndicator color={colors.primary} />
       </Screen>
     );
@@ -50,7 +50,7 @@ export default function ContractDetail() {
   const { contract, balance, installments, payments } = q.data;
   const remaining = balance?.remaining ?? null;
   const status = contractStatus(remaining);
-  const canPay = contract.sale_type === 'installment' && status !== 'settled';
+  const canPay = contract.sale_type === 'installment' && status === 'open' && remaining !== null && remaining > 0;
 
   return (
     <Screen title={`عقد رقم ${contract.contract_no}`} onBack={goBack}>

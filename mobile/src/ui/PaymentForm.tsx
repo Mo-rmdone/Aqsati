@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { PaymentLineInput } from '../api/payments';
 import { PAYMENT_METHODS, parseAmount, sanitizeAmount, type PaymentMethod } from '../api/sales';
 import { formatEGP } from '../lib/money';
-import { validateSplit } from '../lib/split';
+import { autoSplit, validateSplit } from '../lib/split';
 import { Button } from './Button';
 import { Field } from './Field';
 import { colors, font, radius, spacing } from './theme';
@@ -46,18 +46,21 @@ export function PaymentForm({
   const single = contracts.length === 1;
   const sumOf = (m: Record<string, string>) =>
     contracts.reduce((s, c) => s + (parseAmount(m[c.contractId] ?? '') || 0), 0);
-  const [total, setTotal] = useState(() => (initialAmounts ? String(Math.round(sumOf(initialAmounts) * 100) / 100) : ''));
+  const [total, setTotal] = useState(() => (initialAmounts ? sumOf(initialAmounts).toFixed(2) : ''));
   const [amounts, setAmounts] = useState<Record<string, string>>(initialAmounts ?? {});
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const rowValue = (c: PaymentFormContract) => (single ? total : amounts[c.contractId] ?? '');
-  const lines = contracts.map((c) => ({
-    contractId: c.contractId,
-    amount: rowValue(c).trim() === '' ? 0 : parseAmount(rowValue(c)),
-    remaining: c.remaining,
-  }));
   const totalNum = total.trim() === '' ? NaN : parseAmount(total);
+  const auto = single ? autoSplit(totalNum, contracts) : null;
+  const lines = contracts.map((c, i) => {
+    const raw = amounts[c.contractId] ?? '';
+    return {
+      contractId: c.contractId,
+      amount: auto ? auto[i].amount : raw.trim() === '' ? 0 : parseAmount(raw),
+      remaining: c.remaining,
+    };
+  });
   const error = validateSplit(totalNum, lines);
   const sum = lines.reduce((s, l) => s + (Number.isFinite(l.amount) ? l.amount : 0), 0);
   const diff = Math.round(((Number.isFinite(totalNum) ? totalNum : 0) - sum) * 100) / 100;
