@@ -3,10 +3,11 @@
 // Egypt phone-normalization rule are product decisions, kept as-is.
 import { formatEGP } from './money';
 
-/** Egypt: strip non-digits, replace leading 0 with country code 20. */
-export function whatsappLink(phone: string, msg: string): string {
-  const intl = phone.replace(/\D/g, '').replace(/^0/, '20');
-  return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
+/** Egypt mobile only (01[0125]xxxxxxxx): returns a wa.me link, or null for anything else. */
+export function whatsappLink(phone: string, msg: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (!/^01[0125][0-9]{8}$/.test(digits)) return null;
+  return `https://wa.me/20${digits.slice(1)}?text=${encodeURIComponent(msg)}`;
 }
 
 export function reminderMessage(p: {
