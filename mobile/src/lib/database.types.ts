@@ -455,6 +455,7 @@ export type Database = {
           customer_id: string
           edited_at: string | null
           id: string
+          is_opening: boolean
           method: string
           receipt_no: number | null
           received_at: string
@@ -469,6 +470,7 @@ export type Database = {
           customer_id: string
           edited_at?: string | null
           id?: string
+          is_opening?: boolean
           method?: string
           receipt_no?: number | null
           received_at?: string
@@ -483,6 +485,7 @@ export type Database = {
           customer_id?: string
           edited_at?: string | null
           id?: string
+          is_opening?: boolean
           method?: string
           receipt_no?: number | null
           received_at?: string
@@ -945,6 +948,7 @@ export type Database = {
         Args: { p_customer: string; p_lines: Json; p_tenant: string }
         Returns: number
       }
+      import_contract: { Args: { p: Json }; Returns: string }
       installment_status: {
         Args: { p_due: number; p_due_date: string; p_paid: number }
         Returns: string
