@@ -76,7 +76,8 @@ interface AuthContextValue {
   /** true until the initial session + profile lookup has resolved */
   loading: boolean;
   /** re-fetch the profile (reads the live session, never a captured one) */
-  refreshProfile: () => Promise<void>;
+  /** resolves true when a profile was loaded */
+  refreshProfile: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -91,30 +92,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Loads run one at a time: onAuthStateChange and refreshProfile can both fire
   // for the same sign-in, and a concurrent second run would see "no profile, no
   // pending signup" mid-provisioning and clobber the first run's result.
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const loadProfile = useCallback((activeSession: Session | null) => {
-    const run = queue.current.then(() => loadProfileOnce(activeSession));
-    queue.current = run.catch(() => undefined);
+  // loadProfile never rejects, so one failed load cannot block the queue.
+  // Resolves true when a profile was loaded by this run.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const loadProfile = useCallback((activeSession: Session | null): Promise<boolean> => {
+    const run = queue.current
+      .then(() => loadProfileOnce(activeSession))
+      .catch((e) => {
+        console.error('Failed to load profile', e);
+        keepProfileFor(activeSession);
+        return false;
+      });
+    queue.current = run;
     return run;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadProfileOnce = async (activeSession: Session | null) => {
+  // A transient failure must not eject a signed-in user: keep the loaded profile
+  // when it belongs to the same user, otherwise clear it.
+  const keepProfileFor = (activeSession: Session | null) => {
+    const userId = activeSession?.user?.id;
+    setProfile((p) => (userId && p && p.id === userId ? p : null));
+  };
+
+  const loadProfileOnce = async (activeSession: Session | null): Promise<boolean> => {
     if (!activeSession?.user) {
       setProfile(null);
-      return;
+      return false;
     }
     const userId = activeSession.user.id;
 
     const { data, error } = await supabase.from('profile').select('*').eq('id', userId).maybeSingle();
     if (error) {
       console.error('Failed to load profile', error);
-      setProfile(null);
-      return;
+      keepProfileFor(activeSession);
+      return false;
     }
     if (data) {
       setProfile(data);
-      return;
+      return true;
     }
 
     // No profile: first sign-in after email confirmation. Consume the pending
@@ -123,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pending = email ? await takePendingSignup(email) : null;
     if (!pending) {
       setProfile(null);
-      return;
+      return false;
     }
 
     const { error: rpcError } = await supabase.rpc('signup_tenant', {
@@ -135,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Put it back so "إعادة المحاولة" can try again.
       if (email) await stashPendingSignup(email, pending);
       setProfile(null);
-      return;
+      return false;
     }
 
     const { data: fresh, error: refetchError } = await supabase
@@ -143,28 +159,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    if (refetchError) console.error('Failed to load profile after signup_tenant', refetchError);
+    if (refetchError) {
+      console.error('Failed to load profile after signup_tenant', refetchError);
+      keepProfileFor(activeSession);
+      return false;
+    }
     setProfile(fresh ?? null);
+    return Boolean(fresh);
   };
 
   // Reads the live session instead of closing over `session` state: Signup calls
   // this right after signUp() while its render still holds the pre-signup null
   // session, which left new owners stuck on loading (old web, commit 28b62e9).
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = useCallback(async (): Promise<boolean> => {
     const { data } = await supabase.auth.getSession();
     setSession(data.session);
-    await loadProfile(data.session);
+    return loadProfile(data.session);
   }, [loadProfile]);
 
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (cancelled) return;
-      setSession(data.session);
-      await loadProfile(data.session);
-      if (!cancelled) setLoading(false);
-    });
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        setSession(data.session);
+        await loadProfile(data.session);
+      } catch (e) {
+        console.error('Failed to read session', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (cancelled) return;
@@ -172,8 +199,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Defer: supabase-js recommends not awaiting other supabase calls inside this callback.
       setTimeout(async () => {
         if (cancelled) return;
-        await loadProfile(newSession);
-        if (!cancelled) setLoading(false);
+        try {
+          await loadProfile(newSession);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
       }, 0);
     });
 
@@ -196,18 +226,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('name')
       .eq('id', tenantId)
       .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setShopName(data?.name ?? null);
-      });
+      .then(
+        ({ data }) => {
+          if (!cancelled) setShopName(data?.name ?? null);
+        },
+        () => {},
+      );
     return () => {
       cancelled = true;
     };
   }, [tenantId]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
-    setSession(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('signOut failed', e);
+    } finally {
+      // Clear local state even if the server call failed.
+      setProfile(null);
+      setSession(null);
+    }
   }, []);
 
   return (

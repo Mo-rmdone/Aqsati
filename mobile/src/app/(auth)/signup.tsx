@@ -1,5 +1,5 @@
 import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { stashPendingSignup, useAuth } from '../../lib/auth';
@@ -10,12 +10,13 @@ import { Screen } from '../../ui/Screen';
 import { colors, font } from '../../ui/theme';
 
 export default function Signup() {
-  const { refreshProfile } = useAuth();
+  const { session, refreshProfile } = useAuth();
   const router = useRouter();
   const [shopName, setShopName] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const createdEmail = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
@@ -32,6 +33,19 @@ export default function Signup() {
     setSubmitting(true);
     setError(null);
 
+    // The account already exists and is signed in (a previous attempt created it but
+    // signup_tenant failed). Calling signUp again would fail with "already registered",
+    // so re-stash the (possibly edited) names and retry provisioning. On success the
+    // root gate sees the profile and leaves the auth stack.
+    const existingEmail = session?.user.email ?? createdEmail.current;
+    if (existingEmail) {
+      await stashPendingSignup(existingEmail, { tenantName: shopName.trim(), fullName: fullName.trim() });
+      const ok = await refreshProfile();
+      setSubmitting(false);
+      if (!ok) setError('تعذّر إنشاء المتجر، حاول مرة أخرى');
+      return;
+    }
+
     const { data, error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password });
     if (signUpError) {
       setSubmitting(false);
@@ -40,7 +54,9 @@ export default function Signup() {
     }
 
     if (data.session) {
-      // Email confirmation off: live session, provision the shop now.
+      // Email confirmation off: live session, provision the shop now. Remember the
+      // account locally too: the context session lags behind onAuthStateChange.
+      createdEmail.current = email.trim();
       const { error: rpcError } = await supabase.rpc('signup_tenant', {
         p_tenant_name: shopName.trim(),
         p_full_name: fullName.trim(),

@@ -75,13 +75,9 @@ function Gate() {
   // auth stack mounted so a signup in flight is not torn down mid-provisioning.
   if (session && !profile && !inAuth) return <NoProfile />;
 
-  return (
-    <>
-      <Stack screenOptions={{ headerShown: false }} />
-      {!session && !inAuth ? <Redirect href="/login" /> : null}
-      {session && profile && inAuth ? <Redirect href="/" /> : null}
-    </>
-  );
+  if (!session && !inAuth) return <Redirect href="/login" />;
+  if (session && profile && inAuth) return <Redirect href="/" />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 export default function RootLayout() {
