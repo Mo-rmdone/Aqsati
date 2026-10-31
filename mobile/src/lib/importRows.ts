@@ -81,10 +81,13 @@ export function normalizePhone(cell: string): string {
   return t;
 }
 
-export function parseAmount(cell: string): number | null {
-  const t = normalizeDigits(cell)
+const stripAmount = (cell: string) =>
+  normalizeDigits(cell)
     .replace(/ج\.?\s?م\.?|جنيه|EGP|L\.?E\.?/gi, '')
     .replace(/[,٬،\s]/g, '');
+
+export function parseAmount(cell: string): number | null {
+  const t = stripAmount(cell);
   if (t === '' || !/^\d*\.?\d*$/.test(t) || t === '.') return null;
   return Number(t);
 }
@@ -162,7 +165,7 @@ export function validateRow(
   if (!firstDue) errors.push('أول شهر اتدفع غير صحيح');
 
   for (const cell of [raw.total, raw.down, raw.monthly]) {
-    if (/^\d{1,3}(\.\d{3})+$/.test(normalizeDigits(cell).trim())) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(stripAmount(cell))) {
       warnings.push('اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف');
       break;
     }
@@ -213,16 +216,23 @@ export function regroupCustomers(rows: ImportRow[]): ImportRow[] {
   };
   const groups = new Map<string, ImportRow[]>();
   for (const r of rows) groups.set(keyOf(r), [...(groups.get(keyOf(r)) ?? []), r]);
-  const used = new Set<string>();
-  const assigned = new Map<string, string>();
+  // Give each existing id to the group holding the most rows with it (stable on ties),
+  // so an unchanged group never loses its id to a group a row was moved into.
+  const claims: { key: string; id: string; n: number }[] = [];
   for (const [key, members] of groups) {
     const counts = new Map<string, number>();
     for (const m of members) counts.set(m.customerId, (counts.get(m.customerId) ?? 0) + 1);
-    const best = [...counts.entries()].filter(([id]) => !used.has(id)).sort((a, b) => b[1] - a[1])[0]?.[0];
-    const id = best ?? newId();
-    used.add(id);
-    assigned.set(key, id);
+    for (const [id, n] of counts) claims.push({ key, id, n });
   }
+  claims.sort((a, b) => b.n - a.n);
+  const used = new Set<string>();
+  const assigned = new Map<string, string>();
+  for (const c of claims) {
+    if (assigned.has(c.key) || used.has(c.id)) continue;
+    assigned.set(c.key, c.id);
+    used.add(c.id);
+  }
+  for (const key of groups.keys()) if (!assigned.has(key)) assigned.set(key, newId());
   return rows.map((r) => {
     const id = assigned.get(keyOf(r))!;
     return id === r.customerId ? r : { ...r, customerId: id };

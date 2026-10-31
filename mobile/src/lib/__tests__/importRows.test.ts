@@ -170,6 +170,20 @@ describe('review fixes', () => {
     expect(away[0].customerId).toBe(a1.customerId);
     expect(away[1].customerId).not.toBe(a1.customerId);
   });
+  it('regroupCustomers: unchanged group keeps its id when a row moves out first', () => {
+    const rows = toImportRows([base, base, base, base, base]);
+    const Y = rows[0].customerId;
+    const moved = rows.map((r, i) => (i === 0 ? { ...r, raw: { ...r.raw, phone: '01112345678' } } : r));
+    const out = regroupCustomers(moved);
+    for (const r of out.slice(1)) expect(r.customerId).toBe(Y);
+    expect(out[0].customerId).not.toBe(Y);
+  });
+  it('dot-thousands warning sees suffixed and down cells', () => {
+    const w = 'اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف';
+    expect(validateRow({ ...base, total: '25.000 ج.م' }, TODAY).warnings).toContain(w);
+    expect(validateRow({ ...base, total: '25.000 EGP' }, TODAY).warnings).toContain(w);
+    expect(validateRow({ ...base, down: '10.000' }, TODAY).warnings).toContain(w);
+  });
   it('computeContract extra cases', () => {
     const c = computeContract({ total: 25500, down: 10000, monthly: 1000, paidMonths: 3, firstDue: '2025-11-01' });
     expect(c.alreadyPaid).toBe(3000);
