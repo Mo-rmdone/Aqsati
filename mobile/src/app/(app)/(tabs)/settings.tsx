@@ -1,9 +1,9 @@
 import { StyleSheet, Text } from 'react-native';
 
-import { useAuth } from '../../lib/auth';
-import { Button } from '../../ui/Button';
-import { Screen } from '../../ui/Screen';
-import { colors, font } from '../../ui/theme';
+import { useAuth } from '../../../lib/auth';
+import { Button } from '../../../ui/Button';
+import { Screen } from '../../../ui/Screen';
+import { colors, font } from '../../../ui/theme';
 
 export default function Settings() {
   const { shopName, profile, signOut } = useAuth();

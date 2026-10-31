@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { stashPendingSignup, useAuth } from '../../lib/auth';
+import { authErrorMessage } from '../../lib/authErrors';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
@@ -49,7 +50,7 @@ export default function Signup() {
     const { data, error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password });
     if (signUpError) {
       setSubmitting(false);
-      setError(signUpError.message);
+      setError(authErrorMessage(signUpError));
       return;
     }
 
@@ -65,7 +66,7 @@ export default function Signup() {
         // The account exists but has no shop; keep the names so a retry can provision it.
         await stashPendingSignup(email, { tenantName: shopName.trim(), fullName: fullName.trim() });
         setSubmitting(false);
-        setError(rpcError.message);
+        setError(authErrorMessage(rpcError));
         return;
       }
       await refreshProfile();

@@ -1,13 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useCustomer, useCustomers } from '../../../api/customers';
 import {
   PAYMENT_METHODS,
   derivePreview,
-  idForAttempt,
-  isValidDate,
+  saleDateError,
   normalizeDigits,
   sanitizeAmount,
   todayISO,
@@ -16,7 +15,7 @@ import {
   validateSaleForm,
   type SaleForm,
 } from '../../../api/sales';
-import { newId } from '../../../lib/ids';
+import { useAttempt } from '../../../lib/attempt';
 import { formatEGP } from '../../../lib/money';
 import { Button } from '../../../ui/Button';
 import { Field } from '../../../ui/Field';
@@ -63,7 +62,7 @@ export default function NewSale() {
   const { customerId: paramCustomerId } = useLocalSearchParams<{ customerId?: string }>();
   // One id per form instance: a double tap or retry re-sends the same sale.
   // Same id for a pure retry; a new one once the form changed after an attempt.
-  const attemptRef = useRef<{ id: string; sig: string | null }>({ id: newId(), sig: null });
+  const attempt = useAttempt();
   const create = useCreateSale();
 
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
@@ -95,17 +94,33 @@ export default function NewSale() {
     paymentMethod,
   };
   const errors = validateSaleForm(form);
-  const dateError = isValidDate(saleDate) ? undefined : 'التاريخ غير صحيح (YYYY-MM-DD)';
+  const dateError = saleDateError(saleDate);
   const show = <K extends keyof typeof errors>(k: K) => (submitted ? errors[k] : undefined);
   const preview = useMemo(() => derivePreview(form), [form.saleType, price, down, rate, years, saleDate, productDesc]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function resetForm() {
+    setPicked(null);
+    setProductDesc('');
+    setPrice('');
+    setSaleType('installment');
+    setDown('');
+    setRate('');
+    setYears(1);
+    setSaleDate(todayISO());
+    setInvoiceNo('');
+    setPaymentMethod('cash');
+    setSubmitted(false);
+    setFailure(null);
+  }
 
   async function save() {
     setSubmitted(true);
     setFailure(null);
     if (!customer || Object.keys(errors).length > 0 || dateError) return;
     try {
-      attemptRef.current = idForAttempt(attemptRef.current, JSON.stringify(form), newId);
-      const id = await create.mutateAsync({ form, id: attemptRef.current.id });
+      const id = await create.mutateAsync({ form, id: attempt.idFor(JSON.stringify(form)) });
+      attempt.reset();
+      resetForm();
       router.replace(`/contract/${id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : (e as { message?: string } | null)?.message;

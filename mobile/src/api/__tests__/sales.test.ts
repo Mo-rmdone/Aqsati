@@ -125,3 +125,11 @@ test('idForAttempt: same id for a pure retry, new id once the form changed after
   expect(edited.id).toBe('new-1');
   expect(idForAttempt(edited, 'S2', gen).id).toBe('new-1');
 });
+import { saleDateError, FUTURE_SALE_DATE_MSG } from '../sales';
+test('saleDateError: format, future, ok', () => {
+  expect(saleDateError('2026-1-1', '2026-10-31')).toMatch(/التاريخ غير صحيح/);
+  expect(saleDateError('2026-11-01', '2026-10-31')).toBe(FUTURE_SALE_DATE_MSG);
+  expect(FUTURE_SALE_DATE_MSG).toBe('تاريخ البيع لا يمكن أن يكون في المستقبل');
+  expect(saleDateError('2026-10-31', '2026-10-31')).toBeUndefined();
+  expect(saleDateError('2026-01-05', '2026-10-31')).toBeUndefined();
+});

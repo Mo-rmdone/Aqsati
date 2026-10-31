@@ -11,7 +11,7 @@ begin
   insert into public.customer(tenant_id, name, phone) values (b, 'CB', '01012345678') returning id into cb;
   perform set_config('t.bc', gen_random_uuid()::text, true);
   r := public.create_sale(jsonb_build_object('id', current_setting('t.bc'), 'customer_id', cb,
-    'product_desc', 'B item', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'B item', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   a := tests.as_new_owner('Shop A');
   insert into public.customer(tenant_id, name, phone) values (a, 'CA', '01012345678') returning id into ca;
@@ -37,15 +37,15 @@ declare r uuid; r2 uuid;
     '10000000-0000-0000-0000-000000000007','10000000-0000-0000-0000-000000000008'];
 begin
   r := public.create_sale(jsonb_build_object('id', current_setting('t.f'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   r := public.create_sale(jsonb_build_object('id', current_setting('t.w'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'Washer', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'Washer', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   r := public.create_sale(jsonb_build_object('id', current_setting('t.cash'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', '2026-11-01'));
+    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', current_date::text));
   r := public.create_sale(jsonb_build_object('id', current_setting('t.x'), 'customer_id', current_setting('t.ca2'),
-    'product_desc', 'Oven', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'Oven', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
 
   -- happy path: one receipt split 1000/1000, then retried with the same id

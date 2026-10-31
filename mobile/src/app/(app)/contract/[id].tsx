@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { contractStatus } from '../../../api/contracts';
 import { useContract } from '../../../api/payments';
 import { PAYMENT_METHODS } from '../../../api/sales';
+import { formatDateAr, localDateISO } from '../../../lib/date';
 import { Button } from '../../../ui/Button';
 import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
@@ -96,7 +97,7 @@ export default function ContractDetail() {
               return (
                 <View key={i.id} style={styles.tr}>
                   <Text style={styles.cell}>{i.seq_no}</Text>
-                  <Text style={[styles.cell, styles.ltr]}>{i.due_date}</Text>
+                  <Text style={styles.cell}>{formatDateAr(i.due_date)}</Text>
                   <View style={styles.cell}>
                     <Money value={Number(i.amount_due)} style={styles.small} />
                   </View>
@@ -122,7 +123,7 @@ export default function ContractDetail() {
             <Money value={p.line_amount} />
           </Row>
           <Row label="الطريقة">{PAYMENT_METHODS.find((m) => m.value === p.method)?.label ?? p.method}</Row>
-          <Row label="التاريخ">{p.received_at.slice(0, 10)}</Row>
+          <Row label="التاريخ">{formatDateAr(localDateISO(p.received_at))}</Row>
           {p.edited_at ? <StatusChip label="اتعدّلت" tone="warning" /> : null}
           {p.editable ? (
             <Pressable accessibilityRole="button" onPress={() => router.push(`/payment/${p.id}/edit`)}>

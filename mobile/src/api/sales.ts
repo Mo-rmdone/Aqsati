@@ -83,6 +83,15 @@ export function todayISO(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+export const FUTURE_SALE_DATE_MSG = 'تاريخ البيع لا يمكن أن يكون في المستقبل';
+
+/** Date-field error (format, then "not in the future", same rule as create_sale); undefined = ok. */
+export function saleDateError(s: string, today: string = todayISO()): string | undefined {
+  if (!isValidDate(s)) return 'التاريخ غير صحيح (YYYY-MM-DD)';
+  if (s > today) return FUTURE_SALE_DATE_MSG;
+  return undefined;
+}
+
 /** Validation errors for the form (empty object = valid). */
 export function validateSaleForm(f: SaleForm) {
   return validateSale({

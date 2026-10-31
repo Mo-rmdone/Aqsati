@@ -26,28 +26,28 @@ do $$
 declare r uuid;
 begin
   r := public.create_sale(jsonb_build_object('id', current_setting('t.inst'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   r := public.create_sale(jsonb_build_object('id', current_setting('t.cash'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', '2026-11-01'));
+    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', current_date::text));
   -- idempotent repeat
   r := public.create_sale(jsonb_build_object('id', current_setting('t.inst'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'Fridge', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   perform set_config('t.r3', r::text, true);
   begin
     perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000001', 'customer_id', current_setting('t.ca'),
-      'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', '2026-11-01',
+      'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', current_date::text,
       'down_payment', 1000, 'rate_percent', 10, 'years', 1));
   exception when others then perform set_config('t.e_down', sqlerrm, true); end;
   begin
     perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000002', 'customer_id', current_setting('t.ca'),
-      'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', '2026-11-01',
+      'product_desc', 'X', 'sale_type', 'installment', 'total_price', 1000, 'sale_date', current_date::text,
       'down_payment', 0, 'rate_percent', 10, 'years', 6));
   exception when others then perform set_config('t.e_years', sqlerrm, true); end;
   begin
     perform public.create_sale(jsonb_build_object('id', '00000000-0000-0000-0000-000000000003', 'customer_id', current_setting('t.cb'),
-      'product_desc', 'X', 'sale_type', 'cash', 'total_price', 1000, 'sale_date', '2026-11-01'));
+      'product_desc', 'X', 'sale_type', 'cash', 'total_price', 1000, 'sale_date', current_date::text));
   exception when others then perform set_config('t.e_cust', sqlerrm, true); end;
 end $$;
 reset role;

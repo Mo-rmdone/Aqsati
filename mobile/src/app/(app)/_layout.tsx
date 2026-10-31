@@ -1,25 +1,9 @@
-import { Tabs } from 'expo-router';
+﻿import { Stack } from 'expo-router';
 
-import { colors } from '../../ui/theme';
+export const unstable_settings = { initialRouteName: '(tabs)' };
 
-// Labels are Arabic; icons are added with the brand pass.
+// Tabs sit at the bottom of the stack; the form/detail screens are pushed above them and
+// unmount when popped, so no attempt id or form state survives into the next visit.
 export default function AppLayout() {
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarLabelStyle: { fontSize: 13 },
-        tabBarIcon: () => null,
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'الرئيسية' }} />
-      <Tabs.Screen name="customers" options={{ title: 'العملاء' }} />
-      <Tabs.Screen name="sale/new" options={{ title: '+ فاتورة' }} />
-      <Tabs.Screen name="settings" options={{ title: 'الإعدادات' }} />
-      <Tabs.Screen name="contract/[id]" options={{ href: null }} />
-      <Tabs.Screen name="payment/new" options={{ href: null }} />
-      <Tabs.Screen name="payment/[id]/edit" options={{ href: null }} />
-    </Tabs>
-  );
+  return <Stack screenOptions={{ headerShown: false }} />;
 }

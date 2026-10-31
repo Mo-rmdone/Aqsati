@@ -2,13 +2,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { contractStatus, hasOpenBalance, useCustomerContracts } from '../../../api/contracts';
-import { useCustomer } from '../../../api/customers';
-import { Button } from '../../../ui/Button';
-import { Money } from '../../../ui/Money';
-import { Screen } from '../../../ui/Screen';
-import { StatusChip } from '../../../ui/StatusChip';
-import { colors, font, radius, spacing } from '../../../ui/theme';
+import { contractStatus, hasOpenBalance, useCustomerContracts } from '../../../../api/contracts';
+import { useCustomer } from '../../../../api/customers';
+import { Button } from '../../../../ui/Button';
+import { Money } from '../../../../ui/Money';
+import { Screen } from '../../../../ui/Screen';
+import { StatusChip } from '../../../../ui/StatusChip';
+import { colors, font, radius, spacing } from '../../../../ui/theme';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (

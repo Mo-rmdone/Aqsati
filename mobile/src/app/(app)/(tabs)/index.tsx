@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 
-import { useCollectionsKpi, useWorklist, type WorklistRow } from '../../api/dashboard';
-import { useAuth } from '../../lib/auth';
-import { formatDateAr } from '../../lib/date';
-import { reminderMessage, whatsappLink } from '../../lib/whatsapp';
-import { Button } from '../../ui/Button';
-import { Money } from '../../ui/Money';
-import { Screen } from '../../ui/Screen';
-import { colors, font, radius, spacing } from '../../ui/theme';
+import { useCollectionsKpi, useWorklist, type WorklistRow } from '../../../api/dashboard';
+import { useAuth } from '../../../lib/auth';
+import { formatDateAr } from '../../../lib/date';
+import { reminderMessage, whatsappLink } from '../../../lib/whatsapp';
+import { Button } from '../../../ui/Button';
+import { Money } from '../../../ui/Money';
+import { Screen } from '../../../ui/Screen';
+import { colors, font, radius, spacing } from '../../../ui/theme';
 
 function Tile({ label, value, tone }: { label: string; value: number; tone?: 'danger' }) {
   return (

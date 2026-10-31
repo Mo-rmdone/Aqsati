@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, I18nManager, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '../lib/auth';
+import { QueryCacheGuard } from '../lib/QueryCacheGuard';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { Button } from '../ui/Button';
 import { colors, font, spacing } from '../ui/theme';
@@ -86,6 +87,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <QueryCacheGuard />
         <Gate />
       </AuthProvider>
     </QueryClientProvider>

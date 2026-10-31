@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+﻿import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
@@ -258,7 +258,7 @@ test('signup retry: after signUp succeeds but signup_tenant fails, pressing agai
   await press();
   expect(mockSignUp).toHaveBeenCalledTimes(1);
   expect(mockRpc).toHaveBeenCalledTimes(1);
-  expect(screen.getByText('rpc down')).toBeTruthy();
+  expect(screen.getByText('حصلت مشكلة، حاول مرة تانية')).toBeTruthy();
 
   await press();
   expect(mockSignUp).toHaveBeenCalledTimes(1);

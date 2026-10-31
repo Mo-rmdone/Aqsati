@@ -42,6 +42,7 @@ export default function EditPayment() {
       {missing ? <Text style={styles.error}>تعذر تحميل عقود الدفعة</Text> : null}
       {data && candidates && editable ? (
         <PaymentForm
+          key={id}
           contracts={candidates}
           initialAmounts={initialAmounts}
           initialMethod={data.payment.method as PaymentMethod}

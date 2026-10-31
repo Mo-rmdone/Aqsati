@@ -3,6 +3,14 @@ const MONTHS = [
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
+/** Local calendar date (YYYY-MM-DD) of a timestamp, e.g. a timestamptz from the API. */
+export function localDateISO(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** "2026-12-01" -> "1 ديسمبر 2026" (Arabic month, Latin digits). Unparseable input is returned as-is; empty -> "—". */
 export function formatDateAr(iso: string): string {
   if (!iso) return '—';

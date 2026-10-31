@@ -19,3 +19,10 @@ describe('formatDateAr', () => {
     expect(formatDateAr('')).toBe('—');
   });
 });
+
+import { localDateISO } from '../date';
+test('localDateISO uses the local calendar day', () => {
+  const d = new Date(2026, 4, 3, 23, 30);
+  expect(localDateISO(d.toISOString())).toBe('2026-05-03');
+  expect(localDateISO('garbage')).toBe('');
+});

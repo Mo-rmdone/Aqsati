@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCustomers } from '../../../api/customers';
-import { Button } from '../../../ui/Button';
-import { Field } from '../../../ui/Field';
-import { Screen } from '../../../ui/Screen';
-import { colors, font, radius, spacing } from '../../../ui/theme';
+import { useCustomers } from '../../../../api/customers';
+import { Button } from '../../../../ui/Button';
+import { Field } from '../../../../ui/Field';
+import { Screen } from '../../../../ui/Screen';
+import { colors, font, radius, spacing } from '../../../../ui/theme';
 
 export default function Customers() {
   const router = useRouter();

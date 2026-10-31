@@ -23,7 +23,7 @@ begin
   b := tests.as_new_owner('Shop B');
   insert into public.customer(tenant_id, name, phone) values (b, 'CB', '01012345678') returning id into cb;
   r := public.create_sale(jsonb_build_object('id', bc, 'customer_id', cb,
-    'product_desc', 'B item', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'product_desc', 'B item', 'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2));
   perform set_config('t.bpay', (select payment_id::text from public.payment_line where contract_id = bc), true);
   a := tests.as_new_owner('Shop A');
@@ -54,14 +54,14 @@ select set_config('request.jwt.claims', json_build_object('sub', current_setting
 do $$
 declare r uuid; c text;
   sale jsonb := jsonb_build_object('customer_id', current_setting('t.ca'), 'product_desc', 'Item',
-    'sale_type', 'installment', 'total_price', 25000, 'sale_date', '2026-11-01',
+    'sale_type', 'installment', 'total_price', 25000, 'sale_date', current_date::text,
     'down_payment', 10000, 'rate_percent', 30, 'years', 2);
 begin
   foreach c in array array['t.f','t.w','t.g','t.h','t.i'] loop
     r := public.create_sale(sale || jsonb_build_object('id', current_setting(c)));
   end loop;
   r := public.create_sale(jsonb_build_object('id', current_setting('t.cash'), 'customer_id', current_setting('t.ca'),
-    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', '2026-11-01'));
+    'product_desc', 'TV', 'sale_type', 'cash', 'total_price', 7000, 'sale_date', current_date::text));
   r := public.create_sale(sale || jsonb_build_object('id', current_setting('t.x'), 'customer_id', current_setting('t.ca2')));
 
   -- 1. 5000 on f edited to 500; fresh 500 on w is the reference

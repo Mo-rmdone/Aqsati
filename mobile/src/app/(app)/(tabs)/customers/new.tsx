@@ -2,13 +2,13 @@ import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { findCustomerByPhone, useCreateCustomer } from '../../../api/customers';
-import { newId } from '../../../lib/ids';
-import { validateCustomer } from '../../../lib/validation';
-import { Button } from '../../../ui/Button';
-import { Field } from '../../../ui/Field';
-import { Screen } from '../../../ui/Screen';
-import { colors, font, radius, spacing } from '../../../ui/theme';
+import { findCustomerByPhone, useCreateCustomer } from '../../../../api/customers';
+import { newId } from '../../../../lib/ids';
+import { validateCustomer } from '../../../../lib/validation';
+import { Button } from '../../../../ui/Button';
+import { Field } from '../../../../ui/Field';
+import { Screen } from '../../../../ui/Screen';
+import { colors, font, radius, spacing } from '../../../../ui/theme';
 
 export default function NewCustomer() {
   const router = useRouter();

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { useAuth } from '../../lib/auth';
+import { authErrorMessage } from '../../lib/authErrors';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
@@ -30,7 +31,7 @@ export default function Login() {
     });
     if (signInError) {
       setSubmitting(false);
-      setError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+      setError(authErrorMessage(signInError));
       return;
     }
     // Provisions the shop here if this is the first sign-in after email confirmation.
