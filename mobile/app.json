@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "نوتا",
+    "name": "نوتة",
     "slug": "notah",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,6 +17,8 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "name": "نوتة | Notah",
+      "shortName": "نوتة",
       "output": "single",
       "lang": "ar",
       "favicon": "./assets/images/favicon.png"
