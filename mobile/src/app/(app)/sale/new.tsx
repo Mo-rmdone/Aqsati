@@ -106,8 +106,7 @@ export default function NewSale() {
     try {
       attemptRef.current = idForAttempt(attemptRef.current, JSON.stringify(form), newId);
       const id = await create.mutateAsync({ form, id: attemptRef.current.id });
-      // /contract/[id] is built in Task 9.
-      router.replace(`/contract/${id}` as never);
+      router.replace(`/contract/${id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : (e as { message?: string } | null)?.message;
       setFailure(msg && /[؀-ۿ]/.test(msg) ? msg : 'تعذر حفظ الفاتورة، حاول مرة تانية');

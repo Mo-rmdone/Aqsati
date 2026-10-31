@@ -17,6 +17,9 @@ export default function AppLayout() {
       <Tabs.Screen name="customers" options={{ title: 'العملاء' }} />
       <Tabs.Screen name="sale/new" options={{ title: '+ فاتورة' }} />
       <Tabs.Screen name="settings" options={{ title: 'الإعدادات' }} />
+      <Tabs.Screen name="contract/[id]" options={{ href: null }} />
+      <Tabs.Screen name="payment/new" options={{ href: null }} />
+      <Tabs.Screen name="payment/[id]/edit" options={{ href: null }} />
     </Tabs>
   );
 }

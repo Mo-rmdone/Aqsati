@@ -57,7 +57,7 @@ export default function CustomerFile() {
         <Button
           title="تسجيل دفعة"
           variant="secondary"
-          onPress={() => router.push(`/payment/new?customerId=${id}` as never)}
+          onPress={() => router.push(`/payment/new?customerId=${id}`)}
         />
       ) : null}
 
