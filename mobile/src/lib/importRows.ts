@@ -36,13 +36,14 @@ export type ImportRow = {
   status: 'pending' | 'saved' | 'failed'; failure?: string;
 };
 
+const pad = (x: number, w = 2) => String(x).padStart(w, '0');
 const MAX_ROWS = 500;
 const MAX_COUNT = 600;
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 
 function cellToString(v: unknown): string {
   if (v == null) return '';
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) return `${pad(v.getFullYear(), 4)}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
   return String(v).trim();
 }
 
@@ -70,13 +71,24 @@ export function rowsFromSheet(matrix: unknown[][]): { rows: RawRow[]; error?: st
   return { rows };
 }
 
+/** Canonical Egyptian mobile: Latin digits, no +20/0020, leading 0 restored. */
+export function normalizePhone(cell: string): string {
+  let t = normalizeDigits(cell).replace(/[\s\-().]/g, '');
+  if (t.startsWith('+')) t = t.slice(1);
+  if (t.startsWith('0020') && /^1\d{9}$/.test(t.slice(4))) t = t.slice(4);
+  else if (t.startsWith('20') && /^1\d{9}$/.test(t.slice(2))) t = t.slice(2);
+  if (/^1\d{9}$/.test(t)) t = '0' + t;
+  return t;
+}
+
 export function parseAmount(cell: string): number | null {
-  const t = normalizeDigits(cell).replace(/ج\.?\s?م\.?/g, '').replace(/[,٬\s]/g, '');
+  const t = normalizeDigits(cell)
+    .replace(/ج\.?\s?م\.?|جنيه|EGP|L\.?E\.?/gi, '')
+    .replace(/[,٬،\s]/g, '');
   if (t === '' || !/^\d*\.?\d*$/.test(t) || t === '.') return null;
   return Number(t);
 }
 
-const pad = (x: number, w = 2) => String(x).padStart(w, '0');
 function iso(y: number, m: number, d: number): string | null {
   if (m < 1 || m > 12 || d < 1 || y < 1900 || y > 2200) return null;
   if (d > new Date(Date.UTC(y, m, 0)).getUTCDate()) return null;
@@ -130,7 +142,7 @@ export function validateRow(
 
   const ce = validateCustomer({
     name: raw.name,
-    phone: normalizeDigits(raw.phone).replace(/\s/g, ''),
+    phone: normalizePhone(raw.phone),
     nationalId: normalizeDigits(raw.nationalId).replace(/\s/g, ''),
   });
   if (ce.name) errors.push(ce.name);
@@ -148,6 +160,13 @@ export function validateRow(
   if (monthly === null || monthly <= 0) errors.push('القسط الشهري لازم يكون أكبر من صفر');
   if (paid === null || !Number.isInteger(paid)) errors.push('عدد الشهور المدفوعة لازم يكون رقم صحيح (0 لو مفيش)');
   if (!firstDue) errors.push('أول شهر اتدفع غير صحيح');
+
+  for (const cell of [raw.total, raw.down, raw.monthly]) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(normalizeDigits(cell).trim())) {
+      warnings.push('اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف');
+      break;
+    }
+  }
 
   if (total === null || down === null || monthly === null || paid === null || !firstDue || total <= 0 || monthly <= 0)
     return { errors, warnings, computed: null };
@@ -176,13 +195,37 @@ export function validateRow(
 export function toImportRows(raws: RawRow[]): ImportRow[] {
   const byPhone = new Map<string, string>();
   return raws.map((raw) => {
-    const phone = normalizeDigits(raw.phone).replace(/\D/g, '');
+    const phone = normalizePhone(raw.phone);
     let customerId = phone ? byPhone.get(phone) : undefined;
     if (!customerId) {
       customerId = newId();
       if (phone) byPhone.set(phone, customerId);
     }
     return { id: newId(), customerId, raw, ...validateRow(raw), duplicate: false, skip: false, status: 'pending' };
+  });
+}
+
+/** Recompute customerId by normalized phone after edits; existing ids are kept where possible. */
+export function regroupCustomers(rows: ImportRow[]): ImportRow[] {
+  const keyOf = (r: ImportRow) => {
+    const phone = normalizePhone(r.raw.phone);
+    return phone ? `p:${phone}` : `r:${r.id}`;
+  };
+  const groups = new Map<string, ImportRow[]>();
+  for (const r of rows) groups.set(keyOf(r), [...(groups.get(keyOf(r)) ?? []), r]);
+  const used = new Set<string>();
+  const assigned = new Map<string, string>();
+  for (const [key, members] of groups) {
+    const counts = new Map<string, number>();
+    for (const m of members) counts.set(m.customerId, (counts.get(m.customerId) ?? 0) + 1);
+    const best = [...counts.entries()].filter(([id]) => !used.has(id)).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const id = best ?? newId();
+    used.add(id);
+    assigned.set(key, id);
+  }
+  return rows.map((r) => {
+    const id = assigned.get(keyOf(r))!;
+    return id === r.customerId ? r : { ...r, customerId: id };
   });
 }
 

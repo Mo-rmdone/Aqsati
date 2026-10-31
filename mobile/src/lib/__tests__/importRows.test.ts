@@ -8,6 +8,8 @@ import {
   computeContract,
   parseAmount,
   parseMonth,
+  normalizePhone,
+  regroupCustomers,
   rowsFromSheet,
   toImportRows,
   validateRow,
@@ -124,6 +126,60 @@ describe('rowsFromSheet', () => {
   it('rejects > 500 rows', () => {
     const data = Array.from({ length: 501 }, () => ['A', '01012345678', '', '', 'p', '100', '0', '10', '1', '2026-01', '', '']);
     expect(rowsFromSheet([headers, ...data]).error).toBe('الملف فيه أكتر من 500 عقد');
+  });
+});
+
+describe('review fixes', () => {
+  const hdr = ['اسم العميل', 'الموبايل', 'الرقم القومي', 'العنوان', 'السلعة', 'المبلغ الكلي', 'المقدم',
+    'القسط الشهري', 'عدد الشهور المدفوعة', 'أول شهر اتدفع', 'آخر شهر اتدفع', 'رقم الفاتورة'];
+  it('Date cells use local parts', () => {
+    const { rows } = rowsFromSheet([hdr, ['A', '01012345678', '', '', 'p', 100, 0, 10, 1, new Date(2025, 10, 1), '', '']]);
+    expect(rows[0].firstMonth).toBe('2025-11-01');
+  });
+  it('parseAmount extra tokens and edge cases', () => {
+    expect(parseAmount('25،000')).toBe(25000);
+    expect(parseAmount('25000 EGP')).toBe(25000);
+    expect(parseAmount('25000 جنيه')).toBe(25000);
+    expect(parseAmount('25000 L.E')).toBe(25000);
+    expect(parseAmount('-5')).toBeNull();
+    expect(parseAmount('1.5')).toBe(1.5);
+  });
+  it('warns on dot thousands', () => {
+    const w = 'اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف';
+    expect(validateRow({ ...base, total: '25.000' }, TODAY).warnings).toContain(w);
+    expect(validateRow({ ...base, monthly: '1.500' }, TODAY).warnings).toContain(w);
+    expect(validateRow({ ...base, monthly: '1.5' }, TODAY).warnings).not.toContain(w);
+  });
+  it('normalizePhone', () => {
+    for (const p of ['1012345678', '+201012345678', '010-1234-5678', '٠١٠١٢٣٤٥٦٧٨', '0020 101 234 5678'])
+      expect(normalizePhone(p)).toBe('01012345678');
+  });
+  it('validateRow accepts normalizable phone; grouping uses it', () => {
+    expect(validateRow({ ...base, phone: '1012345678' }, TODAY).errors).toEqual([]);
+    const rows = toImportRows([{ ...base, phone: '+20 101 234 5678' }, base]);
+    expect(rows[0].customerId).toBe(rows[1].customerId);
+  });
+  it('regroupCustomers', () => {
+    const rows = toImportRows([base, base, { ...base, phone: '01112345678' }]);
+    const [a1, a2, b] = rows;
+    const out = regroupCustomers(rows.map((r) => (r === b ? { ...r, raw: { ...r.raw, phone: base.phone } } : r)));
+    expect(out[2].customerId).toBe(a1.customerId);
+    expect(out[0].customerId).toBe(a1.customerId);
+    expect(out[1].customerId).toBe(a2.customerId);
+    const away = regroupCustomers(rows.map((r) => (r === a2 ? { ...r, raw: { ...r.raw, phone: '01212345678' } } : r)));
+    expect(away[0].customerId).toBe(a1.customerId);
+    expect(away[1].customerId).not.toBe(a1.customerId);
+  });
+  it('computeContract extra cases', () => {
+    const c = computeContract({ total: 25500, down: 10000, monthly: 1000, paidMonths: 3, firstDue: '2025-11-01' });
+    expect(c.alreadyPaid).toBe(3000);
+    expect(c.left).toBe(12500);
+    expect(c.last).toBe(500);
+    expect(computeContract({ total: 4000, down: 1000, monthly: 1000, paidMonths: 0, firstDue: '2026-03-31' }).saleDate).toBe('2026-02-28');
+  });
+  it('parseMonth rejects bare numbers', () => {
+    expect(parseMonth('2025')).toBeNull();
+    expect(parseMonth('1000')).toBeNull();
   });
 });
 
