@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Money } from './Money';
+import { useIsDesktop } from './layout';
 import { colors, radius, shadow, size, space, type } from './theme';
 
 export type TileTone = 'due' | 'paid' | 'overdue' | 'neutral';
@@ -12,12 +13,13 @@ const tileColor: Record<TileTone, string> = {
 };
 
 export function Tile({ label, value, tone = 'neutral' }: { label: string; value: number | string; tone?: TileTone }) {
+  const desktop = useIsDesktop();
   const valueStyle = { ...type.moneyLg, color: tone === 'overdue' ? colors.overdue : colors.ink };
   return (
     <View style={styles.tile}>
       <View style={styles.head}>
         <View style={[styles.dot, { backgroundColor: tileColor[tone] }]} />
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, !desktop && type.body]}>{label}</Text>
       </View>
       {typeof value === 'number' ? <Money value={value} style={valueStyle} /> : <Text style={valueStyle}>{value}</Text>}
     </View>

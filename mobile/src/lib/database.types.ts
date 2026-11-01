@@ -943,6 +943,7 @@ export type Database = {
           phone: string | null
           remaining_total: number | null
           status: string | null
+          status_rank: number | null
           tenant_id: string | null
         }
         Relationships: [

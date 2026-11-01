@@ -69,7 +69,8 @@ export default function Invoices() {
   const filtered = debounced.trim().length > 0 || date !== 'all' || saleType !== 'all' || status !== 'all';
 
   const countText = data ? `${data.capped ? '+' : ''}${data.count} فاتورة` : '';
-  const subtitle = data ? `${PERIOD_LABEL[date]} · ${countText}` : PERIOD_LABEL[date];
+  const period = PERIOD_LABEL[debounced.trim() ? 'all' : date];
+  const subtitle = data ? `${period} · ${countText}` : period;
   const footer = data
     ? `بيعت في الفترة: ${countText} · ${formatEGP(data.total)}${data.capped ? ' (أول 100)' : ''}`
     : '';

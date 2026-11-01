@@ -18,14 +18,13 @@ import {
   saleDateError,
   normalizeDigits,
   sanitizeAmount,
-  todayISO,
   sanitizeRate,
   useCreateSale,
   validateSaleForm,
   type SaleForm,
 } from '../../../api/sales';
 import { useAttempt } from '../../../lib/attempt';
-import { formatDateAr } from '../../../lib/date';
+import { formatDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
 import { validateCustomer } from '../../../lib/validation';
 import { formatEGP } from '../../../lib/money';

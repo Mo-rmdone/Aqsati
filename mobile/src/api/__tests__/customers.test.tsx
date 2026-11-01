@@ -13,7 +13,11 @@ mockChain.select = (...args: unknown[]) => {
   return mockChain;
 };
 mockChain.then = (res: (v: unknown) => unknown) => res({ count: 7, error: null });
-mockChain.order = () => mockChain;
+const mockOrder = jest.fn();
+mockChain.order = (c: string) => {
+  mockOrder(c);
+  return mockChain;
+};
 const mockNeq = jest.fn();
 mockChain.neq = (col: string, v: unknown) => {
   mockNeq(col, v);
@@ -284,23 +288,19 @@ test('useCustomerCount runs a head count on the view with the filter applied', a
   expect(mockEq).toHaveBeenCalledWith('status', 'late_many');
 });
 
-test('sortBySeverity orders late_many, late, unknown, regular, done, then by name', () => {
-  const r = (name: string, status: string | null) => ({ customer_id: name + status, name, status }) as never;
-  const sorted = sortBySeverity([
-    r('ب', 'done'),
-    r('ب', 'regular'),
-    r('أ', 'regular'),
-    r('ج', 'unknown'),
-    r('د', 'late'),
-    r('ه', 'late_many'),
-  ]);
-  expect(sorted.map((x) => x.status)).toEqual(['late_many', 'late', 'unknown', 'regular', 'regular', 'done']);
-  expect(sorted[3].name).toBe('أ');
+test('useCustomerSummaries orders by status_rank then name on the server, before the limit', async () => {
+  mockOrder.mockClear();
+  const { result } = await renderHook(() => useCustomerSummaries('', 'all'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockOrder.mock.calls.map((c) => c[0])).toEqual(['status_rank', 'name']);
 });
 
-test('"عميل جديد" from the invoice search prefills phone for digits, name otherwise', () => {
-  expect(prefillFromSearch('٠١٠١٢٣٤٥٦٧٨')).toEqual({ name: '', phone: '01012345678', nationalId: '', address: '' });
-  expect(prefillFromSearch(' 010 123 ')).toMatchObject({ name: '', phone: '010123' });
-  expect(prefillFromSearch('محمود')).toMatchObject({ name: 'محمود', phone: '' });
-  expect(prefillFromSearch('')).toMatchObject({ name: '', phone: '' });
+test('sortBySeverity orders by status_rank, then by name', () => {
+  const r = (name: string, status_rank: number | null) => ({ customer_id: name + status_rank, name, status_rank }) as never;
+  const sorted = sortBySeverity([r('ب', 5), r('ب', 4), r('أ', 4), r('ج', 3), r('د', 2), r('ه', 1)]) as unknown as {
+    status_rank: number;
+    name: string;
+  }[];
+  expect(sorted.map((x) => x.status_rank)).toEqual([1, 2, 3, 4, 4, 5]);
+  expect(sorted[3].name).toBe('أ');
 });

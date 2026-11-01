@@ -119,5 +119,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2],
     paddingVertical: space[1],
   },
-  soonText: { ...type.chip, color: colors.inkMuted },
+  soonText: { ...type.helper, color: colors.inkMuted },
 });

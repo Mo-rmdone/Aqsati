@@ -4,13 +4,16 @@ import { createElement, type ReactNode } from 'react';
 
 const mockOrder = jest.fn();
 const mockLimit = jest.fn();
+const mockGte = jest.fn();
 const mockChain: Record<string, unknown> = {};
 mockChain.select = () => mockChain;
+mockChain.gte = (c: string, v: unknown) => (mockGte(c, v), mockChain);
 mockChain.order = (c: string, o: unknown) => (mockOrder(c, o), mockChain);
 mockChain.limit = (n: number) => (mockLimit(n), Promise.resolve({ data: [], error: null }));
 const mockFrom = jest.fn((_t: string) => mockChain);
 jest.mock('../../lib/supabase', () => ({ supabase: { from: (t: string) => mockFrom(t) } }));
 
+import { cairoDayStart } from '../../lib/date';
 import { activityText, sortWorklist, useRecentActivity, type WorklistRow } from '../dashboard';
 
 beforeAll(() => notifyManager.setScheduler((cb) => cb()));

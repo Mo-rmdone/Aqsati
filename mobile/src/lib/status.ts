@@ -13,7 +13,7 @@ export function customerStatusChip(status: string | null): StatusChipProps {
     case 'regular':
       return { label: 'منتظم', tone: 'paid' };
     case 'done':
-      return { label: 'خلّص', tone: 'unknown' };
+      return { label: 'خلّص', tone: 'paid' };
     default:
       return UNKNOWN;
   }

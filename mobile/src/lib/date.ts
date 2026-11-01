@@ -3,12 +3,24 @@ const MONTHS = [
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
-/** Local calendar date (YYYY-MM-DD) of a timestamp, e.g. a timestamptz from the API. */
+/** Cairo calendar date (YYYY-MM-DD) of a timestamp, e.g. a timestamptz from the API. Unparseable -> "". */
 export function localDateISO(ts: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return CAIRO_DAY.format(d);
+}
+
+/** The instant (ISO string, UTC) at which the Cairo day of `now` began, DST-aware. */
+export function cairoDayStart(now: Date = new Date()): string {
+  const [y, m, d] = todayISO(now).split('-').map(Number);
+  // Cairo is UTC+2 or UTC+3; the start of the day is whichever candidate formats back to 00:00 on that day.
+  for (const offset of [3, 2]) {
+    const cand = new Date(Date.UTC(y, m - 1, d, -offset));
+    if (todayISO(cand) === `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` && todayISO(new Date(cand.getTime() - 1)) !== todayISO(cand)) {
+      return cand.toISOString();
+    }
+  }
+  return new Date(Date.UTC(y, m - 1, d, -2)).toISOString();
 }
 
 const CAIRO_DAY = new Intl.DateTimeFormat('en-CA', {

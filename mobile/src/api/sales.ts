@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { todayISO } from '../lib/date';
 import { previewInstallments, type InstallmentPreview } from '../lib/money';
 import { supabase } from '../lib/supabase';
 import { validateSale } from '../lib/validation';
@@ -77,12 +78,6 @@ export function isValidDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-export function todayISO(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
 export const FUTURE_SALE_DATE_MSG = 'تاريخ البيع لا يمكن أن يكون في المستقبل';
 
 /** Date-field error (format, then "not in the future", same rule as create_sale); undefined = ok. */
@@ -151,6 +146,7 @@ export function useCreateSale() {
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customer', v.form.customerId] });
       qc.invalidateQueries({ queryKey: ['contracts', v.form.customerId] });
+      qc.invalidateQueries({ queryKey: ['customer-payments', v.form.customerId] });
       qc.invalidateQueries({ queryKey: ['invoices'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },

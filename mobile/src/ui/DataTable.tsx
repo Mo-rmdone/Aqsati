@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useIsDesktop } from './layout';
 import { border, colors, radius, size, space, type } from './theme';
 
 export type Column<T> = { key: string; title: string; width?: number; render: (row: T) => ReactNode };
@@ -20,6 +21,7 @@ export function DataTable<T>({
   onRowPress?: (row: T) => void;
   empty?: ReactNode;
 }) {
+  const desktop = useIsDesktop();
   const cell = (c: Column<T>) => (c.width ? { width: c.width } : { flex: 1, minWidth: DEFAULT_WIDTH });
   const minWidth = columns.reduce((sum, c) => sum + (c.width ?? DEFAULT_WIDTH), 0);
   return (
@@ -29,7 +31,7 @@ export function DataTable<T>({
           <View style={styles.head}>
             {columns.map((c) => (
               <View key={c.key} style={[styles.cell, cell(c)]}>
-                <Text style={styles.headText}>{c.title}</Text>
+                <Text style={[styles.headText, desktop ? type.helper : type.body]}>{c.title}</Text>
               </View>
             ))}
           </View>
@@ -72,7 +74,7 @@ const styles = StyleSheet.create({
   },
   scroll: { flexGrow: 1 },
   head: { flexDirection: 'row', backgroundColor: colors.surfaceSunken, minHeight: size.tapMin, alignItems: 'center' },
-  headText: { ...type.chip, color: colors.inkMuted, textAlign: 'right' },
+  headText: { color: colors.inkMuted, textAlign: 'right' },
   row: { flexDirection: 'row', alignItems: 'center', minHeight: size.tapMin + space[2] },
   rowLine: { borderTopWidth: border.hairline, borderTopColor: colors.line },
   cell: { paddingHorizontal: space[4], paddingVertical: space[3], justifyContent: 'center' },

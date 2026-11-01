@@ -3,7 +3,7 @@ import { ChevronLeft, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { useCustomerCount, useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
+import { CUSTOMER_LIST_LIMIT, useCustomerCount, useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
 import { customerRowTarget } from '../../../../lib/customersParams';
 import { useCustomersParams } from '../../../../lib/useCustomersParams';
 import { formatDateAr } from '../../../../lib/date';
@@ -81,7 +81,13 @@ export default function Customers() {
 
   return (
     <Screen title={picking ? 'اختار العميل' : 'العملاء'} wide actions={importButton}>
-      {total !== undefined ? <Text style={styles.count}>{`${total} عميل`}</Text> : null}
+      {total !== undefined ? (
+        <Text style={styles.count}>
+          {data && data.length >= CUSTOMER_LIST_LIMIT && total > data.length && !debounced.trim()
+            ? `أول ${CUSTOMER_LIST_LIMIT} من ${total}`
+            : `${total} عميل`}
+        </Text>
+      ) : null}
       <View style={styles.search}>
         <Search size={size.iconSm} color={colors.inkMuted} />
         <TextInput

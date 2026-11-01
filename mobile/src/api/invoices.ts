@@ -72,10 +72,11 @@ export function useCustomerInvoices(customerId: string) {
 export function useInvoices(q: InvoiceQuery, today: string) {
   const term = normalizeDigits(q.search.trim());
   return useQuery({
-    queryKey: ['invoices', term, q.date, q.type, q.status, today],
+    queryKey: ['invoices', term, term ? 'all' : q.date, q.type, q.status, today],
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<InvoiceList> => {
-      const range = dateRange(q.date, today);
+      // A search term looks across all dates: finding an old invoice by number is the point of searching.
+      const range = dateRange(term ? 'all' : q.date, today);
       const base = () => applyFilters(supabase.from('v_invoice_list').select('*'), q, range);
       const ordered = <T extends { order(c: string, o: { ascending: boolean }): T; limit(n: number): PromiseLike<unknown> }>(
         b: T,

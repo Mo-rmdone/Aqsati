@@ -100,18 +100,14 @@ export function applyCustomerFilter<Q extends FilterableQuery>(query: Q, filter:
   }
 }
 
-const SEVERITY = ['late_many', 'late', 'unknown', 'regular', 'done'];
-const rank = (status: string | null) => {
-  const i = SEVERITY.indexOf(status ?? 'unknown');
-  return i === -1 ? SEVERITY.indexOf('unknown') : i;
-};
-
-/** PostgREST can't order by a custom rank, so severity is applied after the fetch. */
+/** Severity first (status_rank, computed by the view), then name. Used to sort merged search results. */
 export function sortBySeverity(rows: CustomerSummary[]): CustomerSummary[] {
   return [...rows].sort(
-    (a, b) => rank(a.status) - rank(b.status) || (a.name ?? '').localeCompare(b.name ?? '', 'ar'),
+    (a, b) => (a.status_rank ?? 3) - (b.status_rank ?? 3) || (a.name ?? '').localeCompare(b.name ?? '', 'ar'),
   );
 }
+
+export const CUSTOMER_LIST_LIMIT = LIST_LIMIT;
 
 export function useCustomerSummaries(search: string, filter: CustomerFilter) {
   const term = normalizeDigits(search.trim());
@@ -121,14 +117,14 @@ export function useCustomerSummaries(search: string, filter: CustomerFilter) {
     queryFn: async (): Promise<CustomerSummary[]> => {
       const base = () => applyCustomerFilter(supabase.from('v_customer_summary').select('*'), filter);
       if (!term) {
-        const { data, error } = await base().order('name').limit(LIST_LIMIT);
+        const { data, error } = await base().order('status_rank').order('name').limit(LIST_LIMIT);
         if (error) throw error;
-        return sortBySeverity(data ?? []);
+        return data ?? [];
       }
       const safe = escapeSearch(term);
       const [byName, byPhone] = await Promise.all([
-        base().ilike('name', `%${safe}%`).order('name').limit(LIST_LIMIT),
-        base().ilike('phone', `${safe}%`).order('name').limit(LIST_LIMIT),
+        base().ilike('name', `%${safe}%`).order('status_rank').order('name').limit(LIST_LIMIT),
+        base().ilike('phone', `${safe}%`).order('status_rank').order('name').limit(LIST_LIMIT),
       ]);
       if (byName.error) throw byName.error;
       if (byPhone.error) throw byPhone.error;

@@ -44,9 +44,10 @@ describe('formatDateAr', () => {
 });
 
 import { localDateISO } from '../date';
-test('localDateISO uses the local calendar day', () => {
-  const d = new Date(2026, 4, 3, 23, 30);
-  expect(localDateISO(d.toISOString())).toBe('2026-05-03');
+test('localDateISO uses the Cairo calendar day', () => {
+  expect(localDateISO('2026-11-30T22:30:00Z')).toBe('2026-12-01');
+  expect(localDateISO('2026-11-30T21:30:00Z')).toBe('2026-11-30');
+  expect(localDateISO('2026-07-31T21:30:00Z')).toBe('2026-08-01');
   expect(localDateISO('garbage')).toBe('');
 });
 

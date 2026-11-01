@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { Tables } from '../lib/database.types';
-import { timeAr } from '../lib/date';
+import { cairoDayStart, timeAr } from '../lib/date';
 import { formatEGP } from '../lib/money';
 import { supabase } from '../lib/supabase';
 

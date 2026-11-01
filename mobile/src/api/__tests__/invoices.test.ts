@@ -68,6 +68,19 @@ test('a 20-digit term skips the contract_no call but still runs the other calls'
   expect(mockIlike).toHaveBeenCalledWith('customer_name', '%12345678901234567890%');
 });
 
+test('a search term ignores the date filter', async () => {
+  await run({ search: 'ثلاجة', date: 'today' });
+  expect(mockGte).not.toHaveBeenCalled();
+  expect(mockLte).not.toHaveBeenCalled();
+  expect(mockIlike).toHaveBeenCalledWith('product_desc', '%ثلاجة%');
+});
+
+test('without a search term the date filter applies', async () => {
+  await run({ date: 'today' });
+  expect(mockGte).toHaveBeenCalledWith('sale_date', '2026-11-15');
+  expect(mockLte).toHaveBeenCalledWith('sale_date', '2026-11-15');
+});
+
 test('a zero term does not query contract_no', async () => {
   await run({ search: '0' });
   expect(mockEq).not.toHaveBeenCalledWith('contract_no', expect.anything());
@@ -81,16 +94,14 @@ test('non-numeric search only runs the text calls, with the escaped pattern', as
   expect(mockEq).not.toHaveBeenCalledWith('contract_no', expect.anything());
 });
 
-test('every search call gets the same filters', async () => {
+test('every search call gets the same status and type filters (and no date range)', async () => {
   await run({ search: '41', status: 'late', type: 'cash', date: { from: '2026-01-01', to: '2026-01-31' } });
   expect(mockEq.mock.calls.filter((c) => c[0] === 'status')).toHaveLength(4);
   expect(mockEq.mock.calls.filter((c) => c[0] === 'sale_type')).toHaveLength(4);
-  expect(mockGte).toHaveBeenCalledTimes(4);
-  expect(mockLte).toHaveBeenCalledTimes(4);
+  expect(mockGte).not.toHaveBeenCalled();
+  expect(mockLte).not.toHaveBeenCalled();
   expect(mockEq).toHaveBeenCalledWith('status', 'late');
   expect(mockEq).toHaveBeenCalledWith('sale_type', 'cash');
-  expect(mockGte).toHaveBeenCalledWith('sale_date', '2026-01-01');
-  expect(mockLte).toHaveBeenCalledWith('sale_date', '2026-01-31');
 });
 
 test('merges by contract_id (newest first) and totals the loaded rows', async () => {

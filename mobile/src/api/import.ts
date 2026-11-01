@@ -334,6 +334,7 @@ export function useImportSave() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

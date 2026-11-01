@@ -169,7 +169,7 @@ function ActivityCard() {
       ) : activity.isError ? (
         <Text style={styles.error}>تعذّر تحميل العمليات</Text>
       ) : activity.data.length === 0 ? (
-        <Text style={styles.empty}>لسه مفيش عمليات</Text>
+        <Text style={styles.empty}>مفيش عمليات النهارده</Text>
       ) : (
         activity.data.map((a: ActivityRow, i) => {
           const t = activityText(a);
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   compactText: { ...type.label },
   cellName: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },
   cellText: { ...type.body, color: colors.ink, textAlign: 'right' },
-  phone: { ...type.helper, color: colors.inkMuted, textAlign: 'right', writingDirection: 'ltr' },
+  phone: { ...type.body, color: colors.inkMuted, textAlign: 'right', writingDirection: 'ltr' },
   sub: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
   card: {
     backgroundColor: colors.surface,
