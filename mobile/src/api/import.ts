@@ -15,15 +15,25 @@ export type ExistingImport = { phone: string; product: string; total: number; fi
 const GENERIC_FAILURE = 'تعذر حفظ العقد، حاول مرة تانية';
 const NAME_CONFLICT = 'نفس الموبايل بأسماء مختلفة';
 
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const FILE_TOO_BIG = 'الملف كبير جدًا (أقصى حجم 5 ميجا)';
+const FILE_UNREADABLE = 'تعذر قراية الملف، اتأكد إنه xlsx أو csv';
+
 /** First sheet as a matrix of raw values; dates stay Excel serials (never JS Dates). */
 export async function readSpreadsheet(file: {
   arrayBuffer(): Promise<ArrayBuffer>;
-  name: string;
 }): Promise<unknown[][]> {
-  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  if (!sheet) return [];
-  return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' });
+  const buf = await file.arrayBuffer();
+  if (buf.byteLength > MAX_FILE_BYTES) throw new Error(FILE_TOO_BIG);
+  try {
+    // header + 500 data rows + 1 extra so rowsFromSheet can still report "more than 500".
+    const wb = XLSX.read(buf, { type: 'array', cellDates: false, sheetRows: 502, sheets: 0, dense: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return [];
+    return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' });
+  } catch {
+    throw new Error(FILE_UNREADABLE);
+  }
 }
 
 const EXAMPLE = ['محمود عبد الحميد', '01012345678', '29001011234567', 'المنصورة', 'ثلاجة توشيبا 16 قدم',
@@ -73,7 +83,7 @@ export function downloadTemplate(): void {
 }
 
 const dupKey = (phone: string, product: string, total: number, firstDue: string) =>
-  `${phone}|${product.trim()}|${total}|${firstDue}`;
+  `${phone}|${product.trim()}|${total}|${firstDue.slice(0, 7)}`;
 
 export function markDuplicates(rows: ImportRow[], existing: ExistingImport[]): ImportRow[] {
   const keys = new Set(existing.map((e) => dupKey(normalizePhone(e.phone), e.product, Number(e.total), e.firstDue)));
@@ -85,24 +95,30 @@ export function markDuplicates(rows: ImportRow[], existing: ExistingImport[]): I
 }
 
 export async function fetchExistingImports(): Promise<ExistingImport[]> {
-  const { data, error } = await supabase
-    .from('contract')
-    .select('product_desc, total_price, customer!inner(phone), installment!inner(due_date, seq_no)')
-    .eq('interest_method', 'imported')
-    .eq('installment.seq_no', 1);
-  if (error) throw error;
+  const PAGE = 1000; // PostgREST's default row cap
   const out: ExistingImport[] = [];
-  for (const c of (data ?? []) as unknown as {
-    product_desc: string | null; total_price: number | string;
-    customer: { phone: string } | { phone: string }[];
-    installment: { due_date: string }[] | { due_date: string };
-  }[]) {
-    const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer;
-    const inst = Array.isArray(c.installment) ? c.installment[0] : c.installment;
-    if (!cust || !inst) continue;
-    out.push({ phone: cust.phone, product: c.product_desc ?? '', total: Number(c.total_price), firstDue: inst.due_date });
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('contract')
+      .select('product_desc, total_price, customer!inner(phone), installment!inner(due_date, seq_no)')
+      .eq('interest_method', 'imported')
+      .eq('installment.seq_no', 1)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as {
+      product_desc: string | null; total_price: number | string;
+      customer: { phone: string } | { phone: string }[];
+      installment: { due_date: string }[] | { due_date: string };
+    }[];
+    for (const c of page) {
+      const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer;
+      const inst = Array.isArray(c.installment) ? c.installment[0] : c.installment;
+      if (!cust || !inst) continue;
+      out.push({ phone: cust.phone, product: c.product_desc ?? '', total: Number(c.total_price), firstDue: inst.due_date });
+    }
+    if (page.length < PAGE) return out;
   }
-  return out;
 }
 
 export function markNameConflicts(rows: ImportRow[]): ImportRow[] {
@@ -124,6 +140,26 @@ const ARABIC = /[؀-ۿ]/;
 function failureMessage(e: unknown): string {
   const m = (e as { message?: unknown } | null)?.message;
   return typeof m === 'string' && ARABIC.test(m) ? m : GENERIC_FAILURE;
+}
+
+/** Existing customers of this shop by (normalized) phone; the oldest wins when several share one. */
+export async function findExistingCustomers(
+  phones: string[],
+  tenantId: string,
+): Promise<Map<string, { id: string; name: string }>> {
+  const out = new Map<string, { id: string; name: string }>();
+  const unique = [...new Set(phones.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    const { data, error } = await supabase
+      .from('customer')
+      .select('id, name, phone')
+      .eq('tenant_id', tenantId)
+      .in('phone', unique.slice(i, i + 100))
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    for (const c of data ?? []) if (!out.has(c.phone)) out.set(c.phone, { id: c.id, name: c.name });
+  }
+  return out;
 }
 
 /**
@@ -149,18 +185,11 @@ export async function saveRows(
       const phone = normalizePhone(r.raw.phone);
       let customerId = customerByPhone.get(phone);
       if (!customerId) {
-        const { data, error } = await supabase
-          .from('customer')
-          .select('id')
-          .eq('phone', phone)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        if (data) {
-          customerId = data.id;
+        const found = (await findExistingCustomers([phone], tenantId)).get(phone);
+        if (found) {
+          customerId = found.id;
         } else {
-          const first = rows.find((x) => todo(x) && normalizePhone(x.raw.phone) === phone) ?? r;
+          const first = rows.find((x) => normalizePhone(x.raw.phone) === phone) ?? r;
           const { error: upErr } = await supabase.from('customer').upsert(
             {
               id: first.customerId,

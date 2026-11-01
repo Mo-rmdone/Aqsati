@@ -1,7 +1,10 @@
 import * as XLSX from 'xlsx';
 
 import { IMPORT_COLUMNS, toImportRows, type ImportRow, type RawRow } from '../../lib/importRows';
-import { buildTemplateWorkbook, markDuplicates, markNameConflicts, saveRows } from '../import';
+import {
+  buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
+  readSpreadsheet, saveRows,
+} from '../import';
 
 jest.mock('expo-crypto', () => {
   let n = 0;
@@ -10,19 +13,27 @@ jest.mock('expo-crypto', () => {
 
 const mockRpc = jest.fn();
 const mockUpsert = jest.fn();
-let mockExisting: { id: string } | null = null;
+const mockLookup = jest.fn();
+const mockRange = jest.fn();
 
 jest.mock('../../lib/supabase', () => ({
   supabase: {
     rpc: (...a: unknown[]) => mockRpc(...a),
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: mockExisting, error: null }) }) }),
-        }),
-      }),
-      upsert: (...a: unknown[]) => mockUpsert(...a),
-    }),
+    from: (table: string) =>
+      table === 'contract'
+        ? {
+            select: () => ({
+              eq: () => ({ eq: () => ({ order: () => ({ range: (...a: unknown[]) => mockRange(...a) }) }) }),
+            }),
+          }
+        : {
+            select: () => ({
+              eq: (...e: unknown[]) => ({
+                in: (...i: unknown[]) => ({ order: async () => mockLookup(e, i) }),
+              }),
+            }),
+            upsert: (...a: unknown[]) => mockUpsert(...a),
+          },
   },
 }));
 
@@ -37,7 +48,8 @@ const ctx = { tenantId: 't1' };
 beforeEach(() => {
   mockRpc.mockReset().mockResolvedValue({ data: 'x', error: null });
   mockUpsert.mockReset().mockResolvedValue({ error: null });
-  mockExisting = null;
+  mockLookup.mockReset().mockResolvedValue({ data: [], error: null });
+  mockRange.mockReset();
 });
 
 test('markDuplicates marks and skips only the matching row', () => {
@@ -79,7 +91,7 @@ test('saveRows creates the customer once and sends the RPC payload', async () =>
 });
 
 test('existing customer by phone is used instead of creating', async () => {
-  mockExisting = { id: 'existing-1' };
+  mockLookup.mockResolvedValue({ data: [{ id: 'existing-1', name: 'قديم', phone: '01012345678' }], error: null });
   const rows = rowsOf(raw(), raw({ product: 'غسالة' }));
   await saveRows(rows, jest.fn(), ctx);
   expect(mockUpsert).not.toHaveBeenCalled();
@@ -94,10 +106,16 @@ test('retry reuses ids and does not resend saved rows', async () => {
   const first = await saveRows(rows, jest.fn(), ctx);
   expect(first.map((r) => r.status)).toEqual(['saved', 'failed']);
   expect(first[1].failure).toBe('تعذر حفظ العقد، حاول مرة تانية');
+  expect(mockUpsert).toHaveBeenCalledTimes(1);
   mockRpc.mockClear();
+  mockLookup.mockResolvedValue({
+    data: [{ id: rows[0].customerId, name: 'محمود', phone: '01012345678' }],
+    error: null,
+  }); // created on first run
   const second = await saveRows(first, jest.fn(), ctx);
   expect(mockRpc).toHaveBeenCalledTimes(1);
   expect(mockRpc.mock.calls[0][1].p.id).toBe(rows[1].id);
+  expect(mockUpsert).toHaveBeenCalledTimes(1); // customer not re-created on retry
   expect(second.map((r) => r.status)).toEqual(['saved', 'saved']);
 });
 
@@ -108,6 +126,85 @@ test('Arabic server messages pass through; thrown errors never escape', async ()
   mockRpc.mockRejectedValueOnce(new Error('network'));
   const out2 = await saveRows(rowsOf(raw()), jest.fn(), ctx);
   expect(out2[0].status).toBe('failed');
+});
+
+test('a customer upsert error becomes the generic Arabic message', async () => {
+  mockUpsert.mockResolvedValueOnce({ error: { message: 'permission denied' } });
+  const out = await saveRows(rowsOf(raw()), jest.fn(), ctx);
+  expect(out[0]).toMatchObject({ status: 'failed', failure: 'تعذر حفظ العقد، حاول مرة تانية' });
+  expect(mockRpc).not.toHaveBeenCalled();
+});
+
+test('customer fields come from the first row of the phone group in file order', async () => {
+  const rows = rowsOf(raw({ name: 'الأول', address: 'عنوان 1' }), raw({ name: 'التاني', address: 'عنوان 2', product: 'غسالة' }));
+  rows[0] = { ...rows[0], skip: true }; // first row is not sent, its data still wins
+  await saveRows(rows, jest.fn(), ctx);
+  expect(mockUpsert.mock.calls[0][0]).toMatchObject({ name: 'الأول', address: 'عنوان 1', id: rows[0].customerId });
+});
+
+test('markDuplicates compares the month, trims product, tolerates string/number total', () => {
+  const rows = rowsOf(raw({ firstMonth: '2025-11', product: ' ثلاجة ' }));
+  const out = markDuplicates(rows, [
+    { phone: '01012345678', product: 'ثلاجة', total: '25000' as unknown as number, firstDue: '2025-11-15' },
+  ]);
+  expect(out[0]).toMatchObject({ duplicate: true, skip: true });
+  const other = markDuplicates(rows, [
+    { phone: '01012345678', product: 'ثلاجة', total: 25000, firstDue: '2025-12-01' },
+  ]);
+  expect(other[0].duplicate).toBe(false);
+});
+
+test('fetchExistingImports pages past the 1000-row cap', async () => {
+  const mk = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      product_desc: `p${i}`, total_price: '100.00', customer: { phone: '01012345678' }, installment: [{ due_date: '2025-11-01' }],
+    }));
+  mockRange
+    .mockResolvedValueOnce({ data: mk(1000), error: null })
+    .mockResolvedValueOnce({ data: mk(5), error: null });
+  const out = await fetchExistingImports();
+  expect(out).toHaveLength(1005);
+  expect(out[0]).toEqual({ phone: '01012345678', product: 'p0', total: 100, firstDue: '2025-11-01' });
+  expect(mockRange.mock.calls).toEqual([[0, 999], [1000, 1999]]);
+});
+
+test('findExistingCustomers scopes by tenant and keeps the oldest per phone', async () => {
+  mockLookup.mockResolvedValue({
+    data: [
+      { id: 'old', name: 'الأقدم', phone: '01012345678' },
+      { id: 'new', name: 'الأحدث', phone: '01012345678' },
+    ],
+    error: null,
+  });
+  const m = await findExistingCustomers(['01012345678', '01012345678'], 't1');
+  expect(m.get('01012345678')).toEqual({ id: 'old', name: 'الأقدم' });
+  expect(mockLookup.mock.calls[0][0]).toEqual(['tenant_id', 't1']);
+  expect(mockLookup.mock.calls[0][1]).toEqual(['phone', ['01012345678']]);
+});
+
+test('readSpreadsheet rejects files over 5 MB before parsing', async () => {
+  const big = { arrayBuffer: async () => new ArrayBuffer(5 * 1024 * 1024 + 1) };
+  await expect(readSpreadsheet(big)).rejects.toThrow('الملف كبير جدًا (أقصى حجم 5 ميجا)');
+});
+
+test('readSpreadsheet throws the Arabic message on an unreadable buffer', async () => {
+  const spy = jest.spyOn(XLSX, 'read').mockImplementationOnce(() => {
+    throw new Error('bad zip');
+  });
+  await expect(readSpreadsheet({ arrayBuffer: async () => new ArrayBuffer(8) })).rejects.toThrow(
+    'تعذر قراية الملف، اتأكد إنه xlsx أو csv',
+  );
+  spy.mockRestore();
+});
+
+test('readSpreadsheet reads a real workbook as raw values and caps at 502 rows', async () => {
+  const aoa = [['a', 'b'], ...Array.from({ length: 600 }, (_, i) => [i, 'x'])];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'S');
+  const bytes = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+  const m = await readSpreadsheet({ arrayBuffer: async () => bytes });
+  expect(m).toHaveLength(502);
+  expect(m[1]).toEqual([0, 'x']);
 });
 
 test('template first sheet headers equal IMPORT_COLUMNS order', () => {
