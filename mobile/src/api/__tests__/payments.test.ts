@@ -1,5 +1,9 @@
 import {
+  deriveInvoiceStatus,
   editableContracts,
+  overdueAmount,
+  installmentWindow,
+  interestText,
   isOpeningBalance,
   isPaymentEditable,
   openInstallmentContracts,
@@ -79,5 +83,66 @@ describe('isOpeningBalance', () => {
     expect(isOpeningBalance(true, [{ kind: 'installment' }, { kind: 'down_payment' }])).toBe(false);
     expect(isOpeningBalance(false, [{ kind: 'installment' }])).toBe(false);
     expect(isOpeningBalance(true, [])).toBe(false);
+  });
+});
+
+const inst = (n: number, paid: boolean) => ({
+  seq_no: n,
+  due_date: `2026-${String(n).padStart(2, '0')}-10`,
+  amount_due: 100,
+  amount_paid: paid ? 100 : 0,
+});
+
+describe('installmentWindow', () => {
+  const list = (paidCount: number, total = 24) => Array.from({ length: total }, (_, i) => inst(i + 1, i < paidCount));
+
+  test('starts at the last paid installment before the first open one', () => {
+    const w = installmentWindow(list(9), '2026-11-05');
+    expect(w.rows.map((r) => r.seq_no)).toEqual([9, 10, 11, 12]);
+    expect(w.hiddenCount).toBe(20);
+  });
+  test('all paid shows the last four', () => {
+    const w = installmentWindow(list(24), '2026-11-05');
+    expect(w.rows.map((r) => r.seq_no)).toEqual([21, 22, 23, 24]);
+    expect(w.hiddenCount).toBe(20);
+  });
+  test('nothing paid starts at the beginning', () => {
+    expect(installmentWindow(list(0), '2026-01-01').rows.map((r) => r.seq_no)).toEqual([1, 2, 3, 4]);
+  });
+  test('open near the end is clamped so the window stays full', () => {
+    expect(installmentWindow(list(23), '2026-01-01').rows.map((r) => r.seq_no)).toEqual([21, 22, 23, 24]);
+  });
+  test('fewer than size shows all', () => {
+    const w = installmentWindow(list(1, 3), '2026-01-01');
+    expect(w.rows).toHaveLength(3);
+    expect(w.hiddenCount).toBe(0);
+  });
+});
+
+describe('overdue and derived status', () => {
+  const rows = [
+    { due_date: '2026-01-10', amount_due: 100, amount_paid: 40 },
+    { due_date: '2026-02-10', amount_due: 100, amount_paid: 100 },
+    { due_date: '2026-12-10', amount_due: 100, amount_paid: 0 },
+  ];
+  test('overdue sums unpaid part of past-due rows only', () => {
+    expect(overdueAmount(rows, '2026-11-05')).toBe(60);
+    expect(overdueAmount(rows, '2026-01-10')).toBe(0);
+  });
+  test('status', () => {
+    expect(deriveInvoiceStatus(null, rows, '2026-11-05')).toBe('unknown');
+    expect(deriveInvoiceStatus(0, rows, '2026-11-05')).toBe('settled');
+    expect(deriveInvoiceStatus(160, rows, '2026-11-05')).toBe('late');
+    expect(deriveInvoiceStatus(160, rows, '2026-01-01')).toBe('open');
+  });
+});
+
+describe('interestText', () => {
+  test('rate and years', () => expect(interestText(0.15, 24, 'flat')).toBe('15% سنوي · 2 سنين'));
+  test('one year', () => expect(interestText(0.15, 12, 'flat')).toBe('15% سنوي · سنة'));
+  test('fractional years', () => expect(interestText(0.1, 18, 'flat')).toBe('10% سنوي · 1.5 سنين'));
+  test('imported or zero interest is a dash', () => {
+    expect(interestText(0.15, 24, 'imported')).toBe('—');
+    expect(interestText(0, 24, 'flat')).toBe('—');
   });
 });

@@ -141,6 +141,48 @@ export interface ContractPayment extends PaymentRow {
   opening: boolean;
 }
 
+type WindowInstallment = { seq_no: number; amount_due: number; amount_paid: number };
+
+/**
+ * The slice of installments to show by default: starts one before the first not-fully-paid
+ * installment (so the reader sees the last paid one for context), `size` rows when possible.
+ */
+export function installmentWindow<T extends WindowInstallment>(
+  installments: T[],
+  _today: string,
+  size = 4,
+): { rows: T[]; hiddenCount: number } {
+  const firstOpen = installments.findIndex((i) => Number(i.amount_paid) < Number(i.amount_due));
+  const raw = (firstOpen === -1 ? installments.length : firstOpen) - 1;
+  const start = Math.max(0, Math.min(raw, installments.length - size));
+  const rows = installments.slice(start, start + size);
+  return { rows, hiddenCount: installments.length - rows.length };
+}
+
+type DueInstallment = { due_date: string; amount_due: number; amount_paid: number };
+
+/** Sum still owed on installments whose due date has passed. */
+export function overdueAmount(installments: DueInstallment[], today: string): number {
+  return installments
+    .filter((i) => i.due_date < today && Number(i.amount_paid) < Number(i.amount_due))
+    .reduce((s, i) => s + (Number(i.amount_due) - Number(i.amount_paid)), 0);
+}
+
+/** Invoice status for invoiceStatusChip: unknown remaining, settled, late (any installment past due) or open. */
+export function deriveInvoiceStatus(remaining: number | null, installments: DueInstallment[], today: string) {
+  if (remaining === null) return 'unknown';
+  if (remaining === 0) return 'settled';
+  return overdueAmount(installments, today) > 0 ? 'late' : 'open';
+}
+
+/** "15% سنوي · 2 سنين"; "—" for imported or zero-interest contracts. */
+export function interestText(rate: number, numInstallments: number, method: string): string {
+  if (method === 'imported' || !(Number(rate) > 0)) return '—';
+  const pct = Number((Number(rate) * 100).toFixed(2));
+  const years = Number((numInstallments / 12).toFixed(2));
+  return `${pct}% سنوي · ${years === 1 ? 'سنة' : `${years} سنين`}`;
+}
+
 export function useContract(id: string) {
   return useQuery({
     queryKey: ['contract', id],
