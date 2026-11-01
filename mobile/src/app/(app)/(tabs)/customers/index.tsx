@@ -1,10 +1,11 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useCustomerCount, useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
-import { customerRowTarget, parseCustomersParams } from '../../../../lib/customersParams';
+import { customerRowTarget } from '../../../../lib/customersParams';
+import { useCustomersParams } from '../../../../lib/useCustomersParams';
 import { formatDateAr } from '../../../../lib/date';
 import { formatEGP } from '../../../../lib/money';
 import { customerStatusChip } from '../../../../lib/status';
@@ -41,8 +42,7 @@ function NextDue({ c }: { c: CustomerSummary }) {
 export default function Customers() {
   const router = useRouter();
   const desktop = useIsDesktop();
-  const params = useLocalSearchParams<{ q?: string; pick?: string }>();
-  const { q: paramQ, picking } = parseCustomersParams(params);
+  const { q: paramQ, picking, clearPick } = useCustomersParams();
   const [search, setSearch] = useState(paramQ);
   const [debounced, setDebounced] = useState(paramQ);
   const [filter, setFilter] = useState<CustomerFilter>('all');
@@ -53,19 +53,6 @@ export default function Customers() {
       setDebounced(paramQ);
     }
   }, [paramQ]);
-  // Params are sticky on a mounted tab: drop them when the screen loses focus so a plain
-  // tab press later shows normal mode and the same term can be searched again.
-  // The ref keeps the callback identity stable so the cleanup only runs on a real blur.
-  const routerRef = useRef(router);
-  routerRef.current = router;
-  useFocusEffect(
-    useCallback(
-      () => () => {
-        routerRef.current.setParams({ pick: undefined, q: undefined });
-      },
-      [],
-    ),
-  );
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
@@ -75,7 +62,7 @@ export default function Customers() {
   const searching = debounced.trim().length > 0 || filter !== 'all';
   const open = (c: CustomerSummary) => {
     const target = customerRowTarget(picking, c.customer_id);
-    if (target.clearPick) router.setParams({ pick: undefined });
+    if (target.clearPick) clearPick();
     router.push(target.path);
   };
   const importButton = picking ? null : (
