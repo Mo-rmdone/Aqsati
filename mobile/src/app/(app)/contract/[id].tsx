@@ -72,6 +72,7 @@ export default function ContractDetail() {
           label={status === 'settled' ? 'مدفوع بالكامل' : status === 'open' ? 'جاري' : 'غير معروف'}
           tone={status === 'settled' ? 'paid' : status === 'open' ? 'due' : 'unknown'}
         />
+        {contract.interest_method === 'imported' ? <StatusChip label="مستورد" tone="unknown" /> : null}
       </View>
 
       {canPay ? (
@@ -124,6 +125,7 @@ export default function ContractDetail() {
           </Row>
           <Row label="الطريقة">{PAYMENT_METHODS.find((m) => m.value === p.method)?.label ?? p.method}</Row>
           <Row label="التاريخ">{formatDateAr(localDateISO(p.received_at))}</Row>
+          {p.opening ? <StatusChip label="رصيد افتتاحي" tone="unknown" /> : null}
           {p.edited_at ? <StatusChip label="اتعدّلت" tone="edited" /> : null}
           {p.editable ? (
             <Pressable accessibilityRole="button" onPress={() => router.push(`/payment/${p.id}/edit`)}>

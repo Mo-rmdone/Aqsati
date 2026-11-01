@@ -1,4 +1,4 @@
-import { editableContracts, isPaymentEditable, openInstallmentContracts, toPaymentLines } from '../payments';
+import { editableContracts, isOpeningBalance, isPaymentEditable, openInstallmentContracts, toPaymentLines } from '../payments';
 
 const bal = (id: string, remaining: number | null, sale_type = 'installment') =>
   ({ contract_id: id, remaining, sale_type, product_desc: `p${id}`, contract_no: 7 }) as never;
@@ -49,4 +49,14 @@ test('editable only when every line is an installment line', () => {
   expect(isPaymentEditable([{ kind: 'installment' }, { kind: 'cash' }])).toBe(false);
   expect(isPaymentEditable([{ kind: 'down_payment' }])).toBe(false);
   expect(isPaymentEditable([])).toBe(false);
+});
+
+describe('isOpeningBalance', () => {
+  test('only opening payments made of installment lines', () => {
+    expect(isOpeningBalance(true, [{ kind: 'installment' }])).toBe(true);
+    expect(isOpeningBalance(true, [{ kind: 'down_payment' }])).toBe(false);
+    expect(isOpeningBalance(true, [{ kind: 'installment' }, { kind: 'down_payment' }])).toBe(false);
+    expect(isOpeningBalance(false, [{ kind: 'installment' }])).toBe(false);
+    expect(isOpeningBalance(true, [])).toBe(false);
+  });
 });

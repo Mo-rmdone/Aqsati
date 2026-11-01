@@ -35,6 +35,7 @@ export default function Customers() {
           style={styles.searchInput}
         />
       </View>
+      <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />
       {isLoading ? <ActivityIndicator color={colors.brand} /> : null}
       {error ? (
         <View style={styles.center}>

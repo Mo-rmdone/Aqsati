@@ -60,6 +60,11 @@ export function isPaymentEditable(lines: { kind: string }[]): boolean {
   return lines.length > 0 && lines.every((l) => l.kind === 'installment');
 }
 
+/** Imported "already paid" installments: opening payment whose lines are installments (the down payment keeps its own label). */
+export function isOpeningBalance(isOpening: boolean, lines: { kind: string }[]): boolean {
+  return isOpening && isPaymentEditable(lines);
+}
+
 function invalidateAfterPayment(qc: QueryClient, customerId: string, contractIds: string[], paymentId?: string) {
   qc.invalidateQueries({ queryKey: ['contracts', customerId] });
   for (const c of contractIds) qc.invalidateQueries({ queryKey: ['contract', c] });
@@ -128,6 +133,8 @@ export interface ContractPayment extends PaymentRow {
   /** this payment's amount on the contract being viewed */
   line_amount: number;
   editable: boolean;
+  /** imported "رصيد افتتاحي" payment */
+  opening: boolean;
 }
 
 export function useContract(id: string) {
@@ -152,7 +159,7 @@ export function useContract(id: string) {
         const [pays, allLines] = await Promise.all([
           supabase
             .from('payment')
-            .select('id, receipt_no, amount, method, received_at, edited_at, customer_id')
+            .select('id, receipt_no, amount, method, received_at, edited_at, customer_id, is_opening')
             .in('id', ids)
             .order('received_at', { ascending: false }),
           supabase.from('payment_line').select('payment_id, contract_id, amount, kind').in('payment_id', ids),
@@ -162,7 +169,7 @@ export function useContract(id: string) {
         payments = pays.data.map((p) => {
           const lines = allLines.data.filter((l) => l.payment_id === p.id);
           const mine = lines.filter((l) => l.contract_id === id).reduce((s, l) => s + Number(l.amount), 0);
-          return { ...p, line_amount: mine, editable: isPaymentEditable(lines) };
+          return { ...p, line_amount: mine, editable: isPaymentEditable(lines), opening: isOpeningBalance(p.is_opening, lines) };
         });
       }
       return { contract: contract.data, balance: balance.data, installments: installments.data, payments };

@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 
 import { IMPORT_COLUMNS, toImportRows, type ImportRow, type RawRow } from '../../lib/importRows';
 import {
-  buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
+  applyRowEdit, buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
   readSpreadsheet, saveRows,
 } from '../import';
 
@@ -214,4 +214,44 @@ test('template first sheet headers equal IMPORT_COLUMNS order', () => {
   expect(m[0]).toEqual(IMPORT_COLUMNS.map((c) => c.header));
   expect(m[1]).toHaveLength(12);
   expect(wb.SheetNames[1]).toBe('تعليمات');
+});
+
+describe('applyRowEdit', () => {
+  const dup = [{ phone: '01012345678', product: 'ثلاجة', total: 25000, firstDue: '2025-11-01' }];
+
+  test('re-validates the edited row, keeps its id, regroups by phone', () => {
+    const rows = rowsOf(raw(), raw({ phone: '01112345678' }));
+    const out = applyRowEdit(rows, rows[1].id, { phone: '01012345678' }, []);
+    expect(out[1].id).toBe(rows[1].id);
+    expect(out[1].raw.phone).toBe('01012345678');
+    expect(out[1].customerId).toBe(out[0].customerId);
+    const bad = applyRowEdit(out, rows[1].id, { monthly: '0' }, []);
+    expect(bad[1].errors.length).toBeGreaterThan(0);
+    expect(bad[1].computed).toBeNull();
+    expect(applyRowEdit(bad, rows[1].id, { monthly: '1000' }, [])[1].errors).toEqual([]);
+  });
+
+  test('duplicate flag follows the edit; name conflict warning is recomputed', () => {
+    const rows = markDuplicates(rowsOf(raw()), dup);
+    expect(rows[0].skip).toBe(true);
+    const moved = applyRowEdit(rows, rows[0].id, { product: 'غسالة' }, dup);
+    expect(moved[0].duplicate).toBe(false);
+    expect(moved[0].skip).toBe(false);
+    const back = applyRowEdit(moved, rows[0].id, { product: 'ثلاجة' }, dup);
+    expect(back[0].duplicate).toBe(true);
+
+    const two = markNameConflicts(rowsOf(raw(), raw({ name: 'أحمد' })));
+    expect(two[0].warnings.length).toBe(1);
+    const fixed = applyRowEdit(two, two[1].id, { name: 'محمود' }, []);
+    expect(fixed[0].warnings).toEqual([]);
+    expect(fixed[1].warnings).toEqual([]);
+  });
+
+  test('an untouched duplicate keeps the user untick', () => {
+    const rows = markDuplicates(rowsOf(raw(), raw({ phone: '01112345678' })), dup);
+    const unticked = rows.map((r, i) => (i === 0 ? { ...r, skip: false } : r));
+    const out = applyRowEdit(unticked, rows[1].id, { address: 'x' }, dup);
+    expect(out[0].skip).toBe(false);
+    expect(out[0].duplicate).toBe(true);
+  });
 });

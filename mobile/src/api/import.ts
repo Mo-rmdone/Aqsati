@@ -6,7 +6,10 @@ import { useAuth } from '../lib/auth';
 import {
   IMPORT_COLUMNS,
   normalizePhone,
+  regroupCustomers,
+  validateRow,
   type ImportRow,
+  type RawRow,
 } from '../lib/importRows';
 import { supabase } from '../lib/supabase';
 
@@ -134,6 +137,28 @@ export function markNameConflicts(rows: ImportRow[]): ImportRow[] {
     if (!p || (names.get(p)?.size ?? 0) < 2 || r.warnings.includes(NAME_CONFLICT)) return r;
     return { ...r, warnings: [...r.warnings, NAME_CONFLICT] };
   });
+}
+
+/**
+ * Inline edit: update raw, re-validate, refresh name-conflict warnings, re-check duplicate for the
+ * edited row only (other rows keep their skip choice), then regroup customers. The row id never changes.
+ */
+export function applyRowEdit(
+  rows: ImportRow[],
+  id: string,
+  patch: Partial<RawRow>,
+  existing: ExistingImport[],
+): ImportRow[] {
+  const edited = rows.map((r) => {
+    const raw = r.id === id ? { ...r.raw, ...patch } : r.raw;
+    const v = validateRow(raw);
+    const base = { ...r, raw, ...v, warnings: v.warnings };
+    if (r.id !== id) return base;
+    return markDuplicates([{ ...base, duplicate: false, skip: false }], existing)[0];
+  });
+  // Warnings of untouched rows were rebuilt above, so conflicts are recomputed from scratch.
+  const withDup = edited.map((r, i) => (r.id === id ? r : { ...r, duplicate: rows[i].duplicate, skip: rows[i].skip }));
+  return regroupCustomers(markNameConflicts(withDup));
 }
 
 const ARABIC = /[؀-ۿ]/;
