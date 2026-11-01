@@ -240,6 +240,7 @@ export function useUpdateCustomer() {
       qc.invalidateQueries({ queryKey: ['customer', c.id] });
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

@@ -1,9 +1,10 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Search } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useCustomerCount, useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
+import { customerRowTarget, parseCustomersParams } from '../../../../lib/customersParams';
 import { formatDateAr } from '../../../../lib/date';
 import { formatEGP } from '../../../../lib/money';
 import { customerStatusChip } from '../../../../lib/status';
@@ -41,11 +42,30 @@ export default function Customers() {
   const router = useRouter();
   const desktop = useIsDesktop();
   const params = useLocalSearchParams<{ q?: string; pick?: string }>();
-  const picking = params.pick === 'payment';
-  const initialQ = typeof params.q === 'string' ? params.q : '';
-  const [search, setSearch] = useState(initialQ);
-  const [debounced, setDebounced] = useState(initialQ);
+  const { q: paramQ, picking } = parseCustomersParams(params);
+  const [search, setSearch] = useState(paramQ);
+  const [debounced, setDebounced] = useState(paramQ);
   const [filter, setFilter] = useState<CustomerFilter>('all');
+  // The tab stays mounted, so a new ?q= (e.g. a second search from Home) must re-seed the field.
+  useEffect(() => {
+    if (paramQ) {
+      setSearch(paramQ);
+      setDebounced(paramQ);
+    }
+  }, [paramQ]);
+  // Params are sticky on a mounted tab: drop them when the screen loses focus so a plain
+  // tab press later shows normal mode and the same term can be searched again.
+  // The ref keeps the callback identity stable so the cleanup only runs on a real blur.
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        routerRef.current.setParams({ pick: undefined, q: undefined });
+      },
+      [],
+    ),
+  );
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
@@ -53,9 +73,14 @@ export default function Customers() {
   const { data, isLoading, error, refetch } = useCustomerSummaries(debounced, filter);
   const { data: total } = useCustomerCount(filter);
   const searching = debounced.trim().length > 0 || filter !== 'all';
-  const open = (c: CustomerSummary) =>
-    router.push(picking ? `/payment/new?customerId=${c.customer_id}` : `/customers/${c.customer_id}`);
-  const importButton = <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />;
+  const open = (c: CustomerSummary) => {
+    const target = customerRowTarget(picking, c.customer_id);
+    if (target.clearPick) router.setParams({ pick: undefined });
+    router.push(target.path);
+  };
+  const importButton = picking ? null : (
+    <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />
+  );
 
   const emptyNode =
     searching ? (
@@ -63,7 +88,7 @@ export default function Customers() {
     ) : (
       <View style={styles.center}>
         <Text style={styles.empty}>لسه مفيش عملاء. أول فاتورة تعملها، العميل بتاعها هيظهر هنا.</Text>
-        <Button title="فاتورة جديدة" onPress={() => router.push('/sale/new')} />
+        {picking ? null : <Button title="فاتورة جديدة" onPress={() => router.push('/sale/new')} />}
       </View>
     );
 
