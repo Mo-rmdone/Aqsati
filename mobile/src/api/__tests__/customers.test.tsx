@@ -14,7 +14,15 @@ mockChain.select = (...args: unknown[]) => {
 };
 mockChain.then = (res: (v: unknown) => unknown) => res({ count: 7, error: null });
 mockChain.order = () => mockChain;
-mockChain.limit = () => Promise.resolve({ data: [], error: null });
+const mockNeq = jest.fn();
+mockChain.neq = (col: string, v: unknown) => {
+  mockNeq(col, v);
+  return mockChain;
+};
+mockChain.limit = () =>
+  Object.assign(Promise.resolve({ data: [], error: null }), {
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+  });
 mockChain.ilike = (col: string, pat: string) => {
   mockIlike(col, pat);
   return mockChain;
@@ -59,6 +67,7 @@ import {
   sortBySeverity,
   useCreateCustomer,
   useUpdateCustomer,
+  findCustomerByPhone,
   useCustomers,
   useCustomerCount,
   useCustomerSummaries,
@@ -169,6 +178,15 @@ test('useUpdateCustomer sends trimmed values and null for empty optional fields'
     address: 'شارع ١',
     notes: 'ملاحظة',
   });
+});
+
+test('findCustomerByPhone excludes the given id, and only then', async () => {
+  mockNeq.mockClear();
+  await findCustomerByPhone('01012345678', 'cust-a');
+  expect(mockNeq).toHaveBeenCalledWith('id', 'cust-a');
+  mockNeq.mockClear();
+  await findCustomerByPhone('01012345678');
+  expect(mockNeq).not.toHaveBeenCalled();
 });
 
 test('useCreateCustomer surfaces a server error', async () => {

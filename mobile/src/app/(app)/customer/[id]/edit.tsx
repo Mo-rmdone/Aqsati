@@ -37,9 +37,9 @@ export default function EditCustomer() {
     setOther(null);
     if (!/^01[0125][0-9]{8}$/.test(phone)) return;
     const t = setTimeout(() => {
-      findCustomerByPhone(phone)
+      findCustomerByPhone(phone, id)
         .then((dup) => {
-          if (live) setOther(dup && dup.id !== id ? dup : null);
+          if (live) setOther(dup);
         })
         .catch(() => {});
     }, 300);

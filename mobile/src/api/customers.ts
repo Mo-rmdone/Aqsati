@@ -200,13 +200,13 @@ export function useCreateCustomer() {
 }
 
 /** For the duplicate-phone warning; null when no customer in the shop has this phone. */
-export async function findCustomerByPhone(phone: string): Promise<{ id: string; name: string } | null> {
-  const { data, error } = await supabase
-    .from('customer')
-    .select('id, name')
-    .eq('phone', phone.trim())
-    .limit(1)
-    .maybeSingle();
+export async function findCustomerByPhone(
+  phone: string,
+  excludeId?: string,
+): Promise<{ id: string; name: string } | null> {
+  let q = supabase.from('customer').select('id, name').eq('phone', phone.trim());
+  if (excludeId) q = q.neq('id', excludeId);
+  const { data, error } = await q.limit(1).maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -239,6 +239,7 @@ export function useUpdateCustomer() {
     onSuccess: (_r, c) => {
       qc.invalidateQueries({ queryKey: ['customer', c.id] });
       qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
     },
   });
 }
