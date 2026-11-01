@@ -53,6 +53,22 @@ export type InvoiceList = {
   capped: boolean;
 };
 
+/** All of one customer's invoices, newest first (not subject to the list screen's date filters). */
+export function useCustomerInvoices(customerId: string) {
+  return useQuery({
+    queryKey: ['invoices', 'customer', customerId],
+    queryFn: async (): Promise<InvoiceRow[]> => {
+      const { data, error } = await supabase
+        .from('v_invoice_list')
+        .select('*')
+        .eq('customer_id', customerId)
+        .order('contract_no', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useInvoices(q: InvoiceQuery, today: string) {
   const term = normalizeDigits(q.search.trim());
   return useQuery({

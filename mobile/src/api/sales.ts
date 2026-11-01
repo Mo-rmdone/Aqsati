@@ -151,6 +151,7 @@ export function useCreateSale() {
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customer', v.form.customerId] });
       qc.invalidateQueries({ queryKey: ['contracts', v.form.customerId] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

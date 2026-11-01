@@ -211,6 +211,50 @@ export async function findCustomerByPhone(phone: string): Promise<{ id: string; 
   return data;
 }
 
+export interface CustomerUpdate {
+  id: string;
+  name: string;
+  phone: string;
+  nationalId: string;
+  address: string;
+  notes: string;
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (c: CustomerUpdate): Promise<void> => {
+      const { error } = await supabase
+        .from('customer')
+        .update({
+          name: c.name.trim(),
+          phone: c.phone.trim(),
+          national_id: c.nationalId.trim() || null,
+          address: c.address.trim() || null,
+          notes: c.notes.trim() || null,
+        })
+        .eq('id', c.id);
+      if (error) throw error;
+    },
+    onSuccess: (_r, c) => {
+      qc.invalidateQueries({ queryKey: ['customer', c.id] });
+      qc.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+}
+
+/** One customer's row from v_customer_summary, or null. Key lives under ['customers'] so every edit/payment refreshes it. */
+export function useCustomerSummary(id: string) {
+  return useQuery({
+    queryKey: ['customers', 'summary-one', id],
+    queryFn: async (): Promise<CustomerSummary | null> => {
+      const { data, error } = await supabase.from('v_customer_summary').select('*').eq('customer_id', id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCustomer(id: string) {
   return useQuery({
     queryKey: ['customer', id],

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import type { Tables } from '../lib/database.types';
+import { formatEGP } from '../lib/money';
 import { supabase } from '../lib/supabase';
 import type { ContractBalance } from './contracts';
 import type { PaymentMethod } from './sales';
@@ -69,6 +70,9 @@ function invalidateAfterPayment(qc: QueryClient, customerId: string, contractIds
   qc.invalidateQueries({ queryKey: ['contracts', customerId] });
   for (const c of contractIds) qc.invalidateQueries({ queryKey: ['contract', c] });
   qc.invalidateQueries({ queryKey: ['customer', customerId] });
+  qc.invalidateQueries({ queryKey: ['customer-payments', customerId] });
+  qc.invalidateQueries({ queryKey: ['customers'] });
+  qc.invalidateQueries({ queryKey: ['invoices'] });
   qc.invalidateQueries({ queryKey: ['dashboard'] });
   if (paymentId) qc.invalidateQueries({ queryKey: ['payment', paymentId] });
 }
@@ -173,6 +177,67 @@ export function useContract(id: string) {
         });
       }
       return { contract: contract.data, balance: balance.data, installments: installments.data, payments };
+    },
+  });
+}
+
+export interface CustomerPayment {
+  id: string;
+  receipt_no: number | null;
+  received_at: string;
+  amount: number;
+  method: string;
+  is_opening: boolean;
+  lines: { contract_id: string; contract_no: number | null; amount: number; kind: string }[];
+}
+
+const plainAmount = (n: number) => formatEGP(n).replace(/\s*ج\.م$/, '');
+
+/** "#41: 1,000.00 · #33: 1,000.00", or just "#41" when the payment has a single line. */
+export function paymentSpreadText(lines: { contract_no: number | null; amount: number }[]): string {
+  if (lines.length === 1) return `#${lines[0].contract_no ?? '—'}`;
+  return lines.map((l) => `#${l.contract_no ?? '—'}: ${plainAmount(Number(l.amount))}`).join(' · ');
+}
+
+/** All of a customer's payments, newest first, each with its per-invoice lines. */
+export function useCustomerPayments(customerId: string) {
+  return useQuery({
+    queryKey: ['customer-payments', customerId],
+    queryFn: async (): Promise<CustomerPayment[]> => {
+      const { data, error } = await supabase
+        .from('payment')
+        .select('id, receipt_no, received_at, amount, method, is_opening, payment_line(contract_id, amount, kind, contract(contract_no))')
+        .eq('customer_id', customerId)
+        .order('received_at', { ascending: false });
+      if (error) throw error;
+      type Raw = {
+        id: string;
+        receipt_no: number | null;
+        received_at: string;
+        amount: number;
+        method: string;
+        is_opening: boolean;
+        payment_line: {
+          contract_id: string;
+          amount: number;
+          kind: string;
+          contract: { contract_no: number } | { contract_no: number }[] | null;
+        }[];
+      };
+      return (data as unknown as Raw[]).map((p) => ({
+        id: p.id,
+        receipt_no: p.receipt_no,
+        received_at: p.received_at,
+        amount: Number(p.amount),
+        method: p.method,
+        is_opening: p.is_opening,
+        lines: (p.payment_line ?? [])
+          .map((l) => {
+            const c = Array.isArray(l.contract) ? l.contract[0] : l.contract;
+            return { contract_id: l.contract_id, contract_no: c?.contract_no ?? null, amount: Number(l.amount), kind: l.kind };
+          })
+          .sort((a, b) => (b.contract_no ?? 0) - (a.contract_no ?? 0)),
+      }));
     },
   });
 }

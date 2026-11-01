@@ -1,4 +1,25 @@
-import { editableContracts, isOpeningBalance, isPaymentEditable, openInstallmentContracts, toPaymentLines } from '../payments';
+import {
+  editableContracts,
+  isOpeningBalance,
+  isPaymentEditable,
+  openInstallmentContracts,
+  paymentSpreadText,
+  toPaymentLines,
+} from '../payments';
+
+describe('paymentSpreadText', () => {
+  test('one line shows only the invoice number', () => {
+    expect(paymentSpreadText([{ contract_no: 41, amount: 1000 }])).toBe('#41');
+  });
+  test('several lines show each invoice with its amount', () => {
+    expect(
+      paymentSpreadText([
+        { contract_no: 41, amount: 1000 },
+        { contract_no: 33, amount: 1000 },
+      ]),
+    ).toBe('#41: 1,000.00 · #33: 1,000.00');
+  });
+});
 
 const bal = (id: string, remaining: number | null, sale_type = 'installment') =>
   ({ contract_id: id, remaining, sale_type, product_desc: `p${id}`, contract_no: 7 }) as never;

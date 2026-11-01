@@ -27,7 +27,22 @@ mockChain.gt = (col: string, v: unknown) => {
   mockGt(col, v);
   return mockChain;
 };
-const mockFrom = jest.fn((_table: string) => ({ upsert: mockUpsert, select: mockChain.select }));
+const mockUpdate = jest.fn();
+const mockUpdateEq = jest.fn();
+const mockUpdateChain = (v: unknown) => {
+  mockUpdate(v);
+  return {
+    eq: (c: string, id: string) => {
+      mockUpdateEq(c, id);
+      return Promise.resolve({ error: null });
+    },
+  };
+};
+const mockFrom = jest.fn((_table: string) => ({
+  upsert: mockUpsert,
+  select: mockChain.select,
+  update: mockUpdateChain,
+}));
 
 jest.mock('../../lib/supabase', () => ({
   supabase: { from: (t: string) => mockFrom(t) },
@@ -43,6 +58,7 @@ import {
   prefillFromSearch,
   sortBySeverity,
   useCreateCustomer,
+  useUpdateCustomer,
   useCustomers,
   useCustomerCount,
   useCustomerSummaries,
@@ -113,6 +129,46 @@ test('useCreateCustomer upserts with ignoreDuplicates each time, with the same i
     });
     expect(call[1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
   }
+});
+
+test('useUpdateCustomer sends trimmed values and null for empty optional fields', async () => {
+  const { result } = await renderHook(() => useUpdateCustomer(), { wrapper: makeWrapper() });
+  await act(async () => {
+    await result.current.mutateAsync({
+      id: 'c-9',
+      name: '  علي  ',
+      phone: ' 01012345678 ',
+      nationalId: '  ',
+      address: '',
+      notes: '   ',
+    });
+  });
+  expect(mockUpdate).toHaveBeenCalledWith({
+    name: 'علي',
+    phone: '01012345678',
+    national_id: null,
+    address: null,
+    notes: null,
+  });
+  expect(mockUpdateEq).toHaveBeenCalledWith('id', 'c-9');
+
+  await act(async () => {
+    await result.current.mutateAsync({
+      id: 'c-9',
+      name: 'علي',
+      phone: '01012345678',
+      nationalId: ' 29001011234567 ',
+      address: ' شارع ١ ',
+      notes: ' ملاحظة ',
+    });
+  });
+  expect(mockUpdate).toHaveBeenLastCalledWith({
+    name: 'علي',
+    phone: '01012345678',
+    national_id: '29001011234567',
+    address: 'شارع ١',
+    notes: 'ملاحظة',
+  });
 });
 
 test('useCreateCustomer surfaces a server error', async () => {
