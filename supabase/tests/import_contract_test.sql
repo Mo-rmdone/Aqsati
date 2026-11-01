@@ -2,7 +2,7 @@
 -- 0018: import_contract (explicit schedule + opening balance), KPI excludes opening payments.
 begin;
 create temp table tap(n serial, l text);
-insert into tap(l) select plan(29);
+insert into tap(l) select plan(31);
 
 do $$
 declare a uuid; b uuid; ca uuid; cb uuid;
@@ -54,6 +54,14 @@ begin
     'product_desc', 'Fridge', 'total_price', 25000, 'down_payment', 10000, 'monthly', 1000,
     'first_due', current_setting('t.fd'), 'paid_months', 6));
   perform set_config('t.r1b', r::text, true);
+  -- same id, different monthly: rejected, nothing changed (0020)
+  begin
+    perform public.import_contract(jsonb_build_object('id', current_setting('t.c1'), 'customer_id', current_setting('t.ca'),
+      'product_desc', 'Fridge', 'total_price', 25000, 'down_payment', 10000, 'monthly', 1500,
+      'first_due', current_setting('t.fd'), 'paid_months', 6));
+    e := 'no error';
+  exception when others then e := sqlerrm; end;
+  perform set_config('t.e_diff', e, true);
   perform set_config('t.n_open_dup', (select count(*) from public.payment where contract_id = current_setting('t.c1')::uuid
     and is_opening and id in (select payment_id from public.payment_line where kind = 'installment'))::text, true);
   -- paid_months > count
@@ -175,6 +183,9 @@ insert into tap(l) select is(current_setting('t.c9_flag'), 'true', 'imported dow
 insert into tap(l) select is(current_setting('t.e_future'), 'أول شهر اتدفع بعيد في المستقبل', 'first_due too far ahead rejected');
 insert into tap(l) select is(current_setting('t.e_big'), 'عدد الأقساط كبير جدًا، راجع القسط الشهري', 'more than 600 installments rejected');
 insert into tap(l) select is(current_setting('t.n_open_dup'), '1', 'same id twice: exactly one opening payment');
+
+insert into tap(l) select is(current_setting('t.e_diff'), 'العقد ده اتحفظ قبل كده بأرقام مختلفة، افتح العقد وعدّله من هناك', 'same id, different monthly rejected');
+insert into tap(l) select is((select count(*) from public.installment where contract_id = current_setting('t.c1')::uuid)::text || '|' || (select count(distinct amount_due) from public.installment where contract_id = current_setting('t.c1')::uuid and amount_due = 1000)::text, '15|1', 'rejected retry changed nothing');
 
 insert into tap(l) select * from finish();
 select string_agg(l, E'\n' order by n) from tap;
