@@ -83,9 +83,9 @@ due(i)    = sale_date + i months                // first installment one month a
 - **المبلغ الكلي = total price including interest.** Remaining = total − down. Installment count = `ceil(remaining / monthly)`; the last installment absorbs the remainder.
 - First due = "أول شهر اتدفع" (month only → day 1). Paid months are recorded as **one editable payment** marked "رصيد افتتاحي" (opening balance, oldest installments first).
 - The imported down payment and the opening balance are **excluded from "collected this month"**.
-- **Re-upload safety:** a row whose phone + product + total + first month already exists is skipped by default (can be overridden per row).
+- **Re-upload safety:** the duplicate check is against previously imported contracts only (not manually created ones): a row whose phone + product + total + first month already exists is skipped by default (can be overridden per row). Identical rows inside the same file get a warning.
 - **Same phone = same customer:** an existing customer is reused untouched (never overwritten).
-- Limits: max 500 rows, 5 MB. The user sees a **preview with inline edit** before saving. Saving is row-by-row and retry-safe (client UUID per row); failures are listed and can be retried.
+- Files: .xlsx or .csv. CSV must be UTF-8 (BOM optional); dates in CSV are read as day/month/year. Limits: max 500 rows, 5 MB. The user sees a **preview with inline edit** before saving. Saving is row-by-row and retry-safe (client UUID per row); failures are listed and can be retried.
 
 ---
 

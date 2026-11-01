@@ -399,7 +399,7 @@ Web: `app.json` → `web.output: "single"`, `web.lang: "ar"`; set `document.docu
 
 **Edit payment** — same form prefilled; offers the payment's own contracts (even if settled) + the customer's other open contracts; remaining = current + own line.
 
-**Import (`/import`)** — pick .xlsx/.csv (max 500 rows, 5 MB) or download the template (12 Arabic headers). Rows are parsed/normalized, computed (remaining, count, last installment) and shown in a preview with inline edit, per-row errors/warnings, duplicate detection (phone + product + total + first month, skipped by default; "تخطي" chip) and a summary count. Save runs row by row (customer reuse by phone within the shop, then `import_contract` with a per-row attempt id); inputs are locked while saving; failed rows stay listed for retry.
+**Import (`/import`)** — pick .xlsx/.csv (max 500 rows, 5 MB) or download the template (12 Arabic headers). Rows are parsed/normalized, computed (remaining, count, last installment) and shown in a preview with inline edit, per-row errors/warnings, duplicate detection (phone + product + total + first month, skipped by default; "تخطي" chip) and a summary count. Save runs row by row (customer reuse by phone within the shop, then `import_contract`; the row id never changes between retries, and the server rejects a different payload for an existing id, telling the user to open and edit the contract instead); inputs are locked while saving; failed rows stay listed for retry.
 
 **Settings** — shop name, "تسجيل الخروج".
 
