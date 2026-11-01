@@ -77,7 +77,69 @@ export function useCustomers(search: string, { withInvoices = false }: { withInv
   });
 }
 
-export type NewCustomerForm = { name: string; phone: string; nationalId: string; address: string };
+export type CustomerFilter = 'all' | 'paid_month' | 'late_month' | 'late_many' | 'owes';
+export type CustomerSummary = Tables<'v_customer_summary'>;
+
+interface FilterableQuery {
+  eq(column: string, value: unknown): this;
+  gt(column: string, value: number): this;
+}
+
+export function applyCustomerFilter<Q extends FilterableQuery>(query: Q, filter: CustomerFilter): Q {
+  switch (filter) {
+    case 'paid_month':
+      return query.eq('paid_this_month', true);
+    case 'late_month':
+      return query.eq('late_this_month', true);
+    case 'late_many':
+      return query.eq('status', 'late_many');
+    case 'owes':
+      return query.gt('remaining_total', 0);
+    default:
+      return query;
+  }
+}
+
+const SEVERITY = ['late_many', 'late', 'unknown', 'regular', 'done'];
+const rank = (status: string | null) => {
+  const i = SEVERITY.indexOf(status ?? 'unknown');
+  return i === -1 ? SEVERITY.indexOf('unknown') : i;
+};
+
+/** PostgREST can't order by a custom rank, so severity is applied after the fetch. */
+export function sortBySeverity(rows: CustomerSummary[]): CustomerSummary[] {
+  return [...rows].sort(
+    (a, b) => rank(a.status) - rank(b.status) || (a.name ?? '').localeCompare(b.name ?? '', 'ar'),
+  );
+}
+
+export function useCustomerSummaries(search: string, filter: CustomerFilter) {
+  const term = normalizeDigits(search.trim());
+  return useQuery({
+    queryKey: ['customers', 'summary', term, filter],
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<CustomerSummary[]> => {
+      const base = () => applyCustomerFilter(supabase.from('v_customer_summary').select('*'), filter);
+      if (!term) {
+        const { data, error } = await base().order('name').limit(LIST_LIMIT);
+        if (error) throw error;
+        return sortBySeverity(data ?? []);
+      }
+      const safe = escapeSearch(term);
+      const [byName, byPhone] = await Promise.all([
+        base().ilike('name', `%${safe}%`).order('name').limit(LIST_LIMIT),
+        base().ilike('phone', `${safe}%`).order('name').limit(LIST_LIMIT),
+      ]);
+      if (byName.error) throw byName.error;
+      if (byPhone.error) throw byPhone.error;
+      const merged = new Map<string, CustomerSummary>();
+      for (const c of [...(byName.data ?? []), ...(byPhone.data ?? [])]) merged.set(c.customer_id ?? '', c);
+      return sortBySeverity(Array.from(merged.values())).slice(0, LIST_LIMIT);
+    },
+  });
+}
+
+export type NewCustomerForm ={ name: string; phone: string; nationalId: string; address: string };
 export const EMPTY_CUSTOMER: NewCustomerForm = { name: '', phone: '', nationalId: '', address: '' };
 
 /** "عميل جديد" from the invoice search: digits prefill the phone, anything else the name. */

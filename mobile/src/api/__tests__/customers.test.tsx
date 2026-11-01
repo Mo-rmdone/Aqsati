@@ -4,12 +4,22 @@ import type { ReactNode } from 'react';
 
 const mockUpsert = jest.fn();
 const mockIlike = jest.fn();
+const mockEq = jest.fn();
+const mockGt = jest.fn();
 const mockChain: Record<string, unknown> = {};
 mockChain.select = () => mockChain;
 mockChain.order = () => mockChain;
 mockChain.limit = () => Promise.resolve({ data: [], error: null });
 mockChain.ilike = (col: string, pat: string) => {
   mockIlike(col, pat);
+  return mockChain;
+};
+mockChain.eq = (col: string, v: unknown) => {
+  mockEq(col, v);
+  return mockChain;
+};
+mockChain.gt = (col: string, v: unknown) => {
+  mockGt(col, v);
   return mockChain;
 };
 const mockFrom = jest.fn((_table: string) => ({ upsert: mockUpsert, select: mockChain.select }));
@@ -22,7 +32,15 @@ jest.mock('../../lib/auth', () => ({
   useAuth: () => ({ profile: { tenant_id: 'tenant-1' } }),
 }));
 
-import { customerSelect, escapeSearch, prefillFromSearch, useCreateCustomer, useCustomers } from '../customers';
+import {
+  customerSelect,
+  escapeSearch,
+  prefillFromSearch,
+  sortBySeverity,
+  useCreateCustomer,
+  useCustomers,
+  useCustomerSummaries,
+} from '../customers';
 
 beforeAll(() => notifyManager.setScheduler((cb) => cb()));
 
@@ -104,6 +122,58 @@ test('useCreateCustomer surfaces a server error', async () => {
 test('customers screen lists only customers with invoices; the invoice picker searches everyone', () => {
   expect(customerSelect(true)).toBe('id, name, phone, contract!inner(id)');
   expect(customerSelect(false)).toBe('id, name, phone');
+});
+
+function summaryWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
+test('useCustomerSummaries reads v_customer_summary and filters late_many by status', async () => {
+  mockEq.mockClear();
+  mockFrom.mockClear();
+  const { result } = await renderHook(() => useCustomerSummaries('', 'late_many'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockFrom).toHaveBeenCalledWith('v_customer_summary');
+  expect(mockEq).toHaveBeenCalledWith('status', 'late_many');
+});
+
+test('useCustomerSummaries maps the other filters', async () => {
+  mockEq.mockClear();
+  mockGt.mockClear();
+  const a = await renderHook(() => useCustomerSummaries('', 'paid_month'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(a.result.current.isSuccess).toBe(true));
+  expect(mockEq).toHaveBeenCalledWith('paid_this_month', true);
+  const b = await renderHook(() => useCustomerSummaries('', 'late_month'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(b.result.current.isSuccess).toBe(true));
+  expect(mockEq).toHaveBeenCalledWith('late_this_month', true);
+  const c = await renderHook(() => useCustomerSummaries('', 'owes'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(c.result.current.isSuccess).toBe(true));
+  expect(mockGt).toHaveBeenCalledWith('remaining_total', 0);
+});
+
+test('useCustomerSummaries normalises Arabic digits for the phone search', async () => {
+  mockIlike.mockClear();
+  const { result } = await renderHook(() => useCustomerSummaries('٠١٠', 'all'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockIlike).toHaveBeenCalledWith('phone', '010%');
+  expect(mockIlike).toHaveBeenCalledWith('name', '%010%');
+});
+
+test('sortBySeverity orders late_many, late, unknown, regular, done, then by name', () => {
+  const r = (name: string, status: string | null) => ({ customer_id: name + status, name, status }) as never;
+  const sorted = sortBySeverity([
+    r('ب', 'done'),
+    r('ب', 'regular'),
+    r('أ', 'regular'),
+    r('ج', 'unknown'),
+    r('د', 'late'),
+    r('ه', 'late_many'),
+  ]);
+  expect(sorted.map((x) => x.status)).toEqual(['late_many', 'late', 'unknown', 'regular', 'regular', 'done']);
+  expect(sorted[3].name).toBe('أ');
 });
 
 test('"عميل جديد" from the invoice search prefills phone for digits, name otherwise', () => {
