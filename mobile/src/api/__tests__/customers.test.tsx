@@ -5,9 +5,14 @@ import type { ReactNode } from 'react';
 const mockUpsert = jest.fn();
 const mockIlike = jest.fn();
 const mockEq = jest.fn();
+const mockSelect = jest.fn();
 const mockGt = jest.fn();
 const mockChain: Record<string, unknown> = {};
-mockChain.select = () => mockChain;
+mockChain.select = (...args: unknown[]) => {
+  mockSelect(...args);
+  return mockChain;
+};
+mockChain.then = (res: (v: unknown) => unknown) => res({ count: 7, error: null });
 mockChain.order = () => mockChain;
 mockChain.limit = () => Promise.resolve({ data: [], error: null });
 mockChain.ilike = (col: string, pat: string) => {
@@ -39,6 +44,7 @@ import {
   sortBySeverity,
   useCreateCustomer,
   useCustomers,
+  useCustomerCount,
   useCustomerSummaries,
 } from '../customers';
 
@@ -160,6 +166,48 @@ test('useCustomerSummaries normalises Arabic digits for the phone search', async
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
   expect(mockIlike).toHaveBeenCalledWith('phone', '010%');
   expect(mockIlike).toHaveBeenCalledWith('name', '%010%');
+});
+
+test('useCustomerSummaries applies the filter to both the name and the phone call', async () => {
+  mockGt.mockClear();
+  mockIlike.mockClear();
+  const { result } = await renderHook(() => useCustomerSummaries('x', 'owes'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockGt).toHaveBeenCalledTimes(2);
+  expect(mockGt).toHaveBeenCalledWith('remaining_total', 0);
+  expect(mockIlike).toHaveBeenCalledTimes(2);
+});
+
+test('useCustomerSummaries uses a different query key per filter', async () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 60000 } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+  const { result, rerender } = await renderHook(
+    ({ f }: { f: 'late_many' | 'paid_month' }) => useCustomerSummaries('', f),
+    { wrapper, initialProps: { f: 'late_many' as 'late_many' | 'paid_month' } },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  await rerender({ f: 'paid_month' });
+  await waitFor(() => expect(qc.getQueryCache().getAll()).toHaveLength(2));
+  const keys = qc.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey));
+  expect(keys).toEqual(
+    expect.arrayContaining([
+      JSON.stringify(['customers', 'summary', '', 'late_many']),
+      JSON.stringify(['customers', 'summary', '', 'paid_month']),
+    ]),
+  );
+});
+
+test('useCustomerCount runs a head count on the view with the filter applied', async () => {
+  mockSelect.mockClear();
+  mockEq.mockClear();
+  mockFrom.mockClear();
+  const { result } = await renderHook(() => useCustomerCount('late_many'), { wrapper: summaryWrapper() });
+  await waitFor(() => expect(result.current.data).toBe(7));
+  expect(mockFrom).toHaveBeenCalledWith('v_customer_summary');
+  expect(mockSelect).toHaveBeenCalledWith('customer_id', { count: 'exact', head: true });
+  expect(mockEq).toHaveBeenCalledWith('status', 'late_many');
 });
 
 test('sortBySeverity orders late_many, late, unknown, regular, done, then by name', () => {

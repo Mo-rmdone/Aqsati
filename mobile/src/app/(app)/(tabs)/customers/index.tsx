@@ -3,7 +3,7 @@ import { ChevronLeft, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
+import { useCustomerCount, useCustomerSummaries, type CustomerFilter, type CustomerSummary } from '../../../../api/customers';
 import { formatDateAr } from '../../../../lib/date';
 import { formatEGP } from '../../../../lib/money';
 import { customerStatusChip } from '../../../../lib/status';
@@ -48,6 +48,7 @@ export default function Customers() {
     return () => clearTimeout(t);
   }, [search]);
   const { data, isLoading, error, refetch } = useCustomerSummaries(debounced, filter);
+  const { data: total } = useCustomerCount(filter);
   const searching = debounced.trim().length > 0 || filter !== 'all';
   const open = (c: CustomerSummary) => router.push(`/customers/${c.customer_id}`);
   const importButton = <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />;
@@ -64,7 +65,7 @@ export default function Customers() {
 
   return (
     <Screen title="العملاء" wide actions={importButton}>
-      {data ? <Text style={styles.count}>{`${data.length} عميل`}</Text> : null}
+      {total !== undefined ? <Text style={styles.count}>{`${total} عميل`}</Text> : null}
       <View style={styles.search}>
         <Search size={size.iconSm} color={colors.inkMuted} />
         <TextInput
@@ -152,11 +153,11 @@ const styles = StyleSheet.create({
   rowMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
   name: { ...type.title3, color: colors.ink, textAlign: 'right' },
   cellName: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },
-  cellText: { ...type.helper, color: colors.ink, textAlign: 'right' },
-  muted: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
-  phone: { ...type.helper, color: colors.inkMuted, textAlign: 'right', writingDirection: 'ltr' },
-  count: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
-  hint: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
+  cellText: { ...type.body, color: colors.ink, textAlign: 'right' },
+  muted: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
+  phone: { ...type.body, color: colors.inkMuted, textAlign: 'right', writingDirection: 'ltr' },
+  count: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
+  hint: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
   empty: { ...type.body, color: colors.inkMuted, textAlign: 'center' },
   error: { ...type.body, color: colors.error, textAlign: 'center' },
   center: { gap: space[3], paddingVertical: space[6] },

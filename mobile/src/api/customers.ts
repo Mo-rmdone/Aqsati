@@ -139,7 +139,23 @@ export function useCustomerSummaries(search: string, filter: CustomerFilter) {
   });
 }
 
-export type NewCustomerForm ={ name: string; phone: string; nationalId: string; address: string };
+/** Real total for the header (ignores the search term; the list itself is capped at 50). */
+export function useCustomerCount(filter: CustomerFilter) {
+  return useQuery({
+    queryKey: ['customers', 'count', filter],
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await applyCustomerFilter(
+        supabase.from('v_customer_summary').select('customer_id', { count: 'exact', head: true }),
+        filter,
+      );
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+export type NewCustomerForm = { name: string; phone: string; nationalId: string; address: string };
 export const EMPTY_CUSTOMER: NewCustomerForm = { name: '', phone: '', nationalId: '', address: '' };
 
 /** "عميل جديد" from the invoice search: digits prefill the phone, anything else the name. */
