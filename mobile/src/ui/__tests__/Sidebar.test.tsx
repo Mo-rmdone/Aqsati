@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 let mockPath = '/customers/abc';
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, navigate: mockNavigate }),
   usePathname: () => mockPath,
 }));
 
@@ -27,4 +28,12 @@ test('+ فاتورة جديدة pushes /sale/new', async () => {
   await render(<Sidebar />);
   await fireEvent.press(screen.getByRole('button', { name: /فاتورة جديدة/ }));
   expect(mockPush).toHaveBeenCalledWith('/sale/new');
+});
+
+test('nav items use navigate, not push', async () => {
+  mockPush.mockClear();
+  await render(<Sidebar />);
+  await fireEvent.press(screen.getByRole('link', { name: 'العملاء' }));
+  expect(mockNavigate).toHaveBeenCalledWith('/customers');
+  expect(mockPush).not.toHaveBeenCalled();
 });

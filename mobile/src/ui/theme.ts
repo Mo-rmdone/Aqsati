@@ -87,7 +87,7 @@ export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12
 export const spacing = { xs: space[1], sm: space[2], md: space[4], lg: space[6], xl: space[8] } as const;
 export const radius = { sm: 8, md: 12, lg: 16, xl: 24, pill: 999 } as const;
 export const border = { hairline: 1, strong: 1.5 } as const;
-export const size = { tapMin: 48, tapLg: 56, iconMd: 24, iconSm: 20, columnMax: 480, gutter: 16, contentMax: 1200, sidebar: 248, logo: 40 } as const;
+export const size = { tapMin: 48, tapLg: 56, iconMd: 24, iconSm: 20, columnMax: 480, gutter: 16, contentMax: 1200, sidebar: 248, logo: 40, dot: 10 } as const;
 export const breakpoint = { desktop: 1024 } as const;
 
 export const fontFamily = {
@@ -99,6 +99,7 @@ export const fontFamily = {
 
 export const type = {
   title1: { fontFamily: fontFamily.bold, fontSize: 28, lineHeight: 40 },
+  wordmark: { fontFamily: fontFamily.bold, fontSize: 26, lineHeight: 36 },
   title2: { fontFamily: fontFamily.bold, fontSize: 22, lineHeight: 34 },
   title3: { fontFamily: fontFamily.semibold, fontSize: 18, lineHeight: 30 },
   body: { fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 28 },

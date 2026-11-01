@@ -8,15 +8,16 @@ export const unstable_settings = { initialRouteName: '(tabs)' };
 
 // Tabs sit at the bottom of the stack; the form/detail screens are pushed above them and
 // unmount when popped, so no attempt id or form state survives into the next visit.
-// Desktop: a persistent sidebar replaces the tab bar.
+// Desktop: a persistent sidebar replaces the tab bar. The wrapper tree is identical on
+// every width so the Stack never remounts (and wipes forms) when the window crosses 1024.
 export default function AppLayout() {
   const desktop = useIsDesktop();
-  const stack = <Stack screenOptions={{ headerShown: false }} />;
-  if (!desktop) return stack;
   return (
     <View style={styles.row}>
-      <Sidebar />
-      <View style={styles.main}>{stack}</View>
+      {desktop ? <Sidebar /> : null}
+      <View style={styles.main}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </View>
     </View>
   );
 }

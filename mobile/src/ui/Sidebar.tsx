@@ -52,8 +52,8 @@ export function Sidebar() {
               accessibilityLabel={label}
               accessibilityState={{ selected: active, disabled: !!disabled }}
               disabled={disabled}
-              onPress={() => router.push(href)}
-              style={[styles.item, active && styles.itemActive, disabled && styles.itemDisabled]}
+              onPress={() => router.navigate(href)}
+              style={[styles.item, active && styles.itemActive]}
             >
               <Icon size={size.iconMd} color={fg} />
               <Text style={[styles.itemText, { color: fg }, active && styles.itemTextActive]}>{label}</Text>
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   markText: { ...type.title3, color: colors.coin },
-  brand: { ...type.title1, color: colors.brand, fontSize: 26 },
+  brand: { ...type.wordmark, color: colors.brand },
   cta: {
     minHeight: size.tapLg,
     borderRadius: radius.md,
@@ -110,7 +110,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
   },
   itemActive: { backgroundColor: colors.brandSoft },
-  itemDisabled: { opacity: 0.7 },
   itemText: { ...type.body },
   itemTextActive: { ...type.bodyStrong },
   soon: {

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Money } from './Money';
-import { colors, radius, shadow, space, type } from './theme';
+import { colors, radius, shadow, size, space, type } from './theme';
 
 export type TileTone = 'due' | 'paid' | 'overdue' | 'neutral';
 const tileColor: Record<TileTone, string> = {
@@ -35,6 +35,6 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
+  dot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
   label: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
 });
