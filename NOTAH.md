@@ -111,7 +111,7 @@ docs/        Specs, plans, brand, design system, this project's history.
 |---|---|
 | `tenant` | A shop. |
 | `profile` | User ↔ shop, role (`owner` now; manager/accountant/collector/viewer supported in DB). |
-| `customer` | Shop's customers. |
+| `customer` | Shop's customers. `notes` (free text, v2). |
 | `contract` | An invoice. `sale_type` cash/installment, `contract_no` per shop, `external_invoice_no`, price, down payment, rate, `num_installments`, `start_date`. `interest_method` includes `'imported'` (explicit schedule, any installment count ≥ 1). |
 | `installment` | Schedule rows: `seq_no`, `due_date`, `amount_due`, `amount_paid`, `status` (pending/partial/paid/overdue). |
 | `payment` | A receipt: `receipt_no` per shop, amount, method (cash/instapay/fawry/wallet/card/bank), `received_at`, `edited_at`, `is_opening` (money from before Notah; excluded from "collected this month"). |
@@ -121,6 +121,11 @@ docs/        Specs, plans, brand, design system, this project's history.
 | `credit_invoice` | Legacy آجل invoices — **not used in v1**. |
 
 Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining per contract), `v_collections_kpi` (home tiles), `v_worklist` ("who to call today"), `v_aging`, `v_installment_aging`.
+
+v2 list views (migration `0021_v2_lists.sql`, `security_invoker`, anon revoked; void contracts excluded; past-due is computed from `due_date < Cairo today` and unpaid, not from the nightly flag):
+- `v_invoice_list` — one row per non-void contract: contract_no, external_invoice_no, customer name/phone, product, sale_type, `sale_date`, `total_payable`, `paid`, `remaining`, `overdue_count`, `next_due_date`, `status` (`settled` / `late` / `open` / `unknown`).
+- `v_customer_summary` — one row per customer with at least one non-void contract: `invoice_count`, `paid_total`, `remaining_total`, `overdue_amount`, `overdue_count`, `max_overdue_per_contract`, `next_due_date`/`next_due_amount`, `paid_this_month`, `late_this_month`, `has_unknown`, `status` (`late_many` / `late` / `unknown` / `regular` / `done`).
+- `v_recent_activity` — sales and non-opening payments, newest first: `at`, `kind` (`sale` / `payment`), customer, contract, `amount`.
 
 ### 4.3 Server functions (RPCs) — the only way money is written
 | Function | What it does |
@@ -141,14 +146,18 @@ Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining
 | Route | Screen |
 |---|---|
 | `/login`, `/signup` | Sign in / create shop. |
-| `/` (tab) | Home: tiles (مستحق الأسبوع ده، المحصّل الشهر ده، إجمالي المتأخرات) + "مين لازم أكلمه النهارده" with WhatsApp + record payment. |
-| `/customers` (tab) | Customers with invoices; search by name/phone. |
-| `/customers/[id]` | Customer file: details, invoices, new invoice, record payment. |
+| `/` (tab) | Home (v2: quick actions, worklist table, recent activity from `v_recent_activity`): tiles (مستحق الأسبوع ده، المحصّل الشهر ده، إجمالي المتأخرات) + "مين لازم أكلمه النهارده" with WhatsApp + record payment. |
+| `/customers` (tab) | Customers (from `v_customer_summary`): search, status filter chips, `?q` param (see `lib/customersParams.ts`). Table on desktop, rows on phone. |
+| `/invoices` (tab) | All invoices (from `v_invoice_list`) with filter chips; table on desktop, rows on phone. |
+| `/customers/[id]` | Customer file: details, notes, invoices, payments, new invoice, record payment. |
+| `/customer/[id]/edit` | Edit customer name, phone and notes. |
 | `/sale/new` (center "+ فاتورة") | New invoice with customer search or **عميل جديد**, cash/installment, live preview (monthly installment is the hero number). |
 | `/contract/[id]` | Contract: balance, installment table, payments, edit. |
 | `/payment/new`, `/payment/[id]/edit` | Record / edit a split payment. |
 | `/import` | Excel import: pick file, preview/edit rows, save row-by-row. |
 | `/settings` (tab) | Shop name, sign out. |
+
+**Responsive shell (v2):** at width ≥ 1024 (`useIsDesktop()` in `mobile/src/ui/layout.ts`) the bottom tabs are replaced by a right-hand `Sidebar`; content is capped at `size.contentMax` (1200). Lists use `DataTable` on desktop and rows on phone; `Screen actions` render on desktop only. Shared pieces: `ui/Tile`, `ui/DataTable`, `ui/FilterChips`, `lib/status.ts` (status chips), `api/invoices.ts`. Dates use Cairo day helpers in `lib/date.ts` (`todayISO`, `headerDateAr`, `timeAr`).
 
 Forms (`sale/new`, `payment/*`, `contract/*`) live in a Stack above the tabs so they unmount when closed and never carry state into the next sale.
 
