@@ -153,6 +153,13 @@ export type Database = {
             foreignKeyName: "contract_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -211,6 +218,13 @@ export type Database = {
             foreignKeyName: "credit_invoice_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "credit_invoice_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -231,6 +245,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          notes: string | null
           phone: string
           tenant_id: string
         }
@@ -241,6 +256,7 @@ export type Database = {
           id?: string
           name: string
           national_id?: string | null
+          notes?: string | null
           phone: string
           tenant_id: string
         }
@@ -251,6 +267,7 @@ export type Database = {
           id?: string
           name?: string
           national_id?: string | null
+          notes?: string | null
           phone?: string
           tenant_id?: string
         }
@@ -318,6 +335,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "v_installment_aging"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "installment_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoice_list"
             referencedColumns: ["contract_id"]
           },
           {
@@ -393,6 +417,13 @@ export type Database = {
             foreignKeyName: "message_log_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "v_invoice_list"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "message_log_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["contract_id"]
           },
@@ -402,6 +433,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
           },
           {
             foreignKeyName: "message_log_customer_id_fkey"
@@ -519,6 +557,13 @@ export type Database = {
             foreignKeyName: "payment_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "v_invoice_list"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "payment_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["contract_id"]
           },
@@ -542,6 +587,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
           },
           {
             foreignKeyName: "payment_customer_id_fkey"
@@ -677,6 +729,13 @@ export type Database = {
             foreignKeyName: "payment_line_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "v_invoice_list"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "payment_line_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["contract_id"]
           },
@@ -795,6 +854,13 @@ export type Database = {
             foreignKeyName: "credit_invoice_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "credit_invoice_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -841,11 +907,47 @@ export type Database = {
             foreignKeyName: "contract_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
           {
             foreignKeyName: "contract_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_customer_summary: {
+        Row: {
+          customer_id: string | null
+          has_unknown: boolean | null
+          invoice_count: number | null
+          late_this_month: boolean | null
+          max_overdue_per_contract: number | null
+          name: string | null
+          next_due_amount: number | null
+          next_due_date: string | null
+          overdue_amount: number | null
+          overdue_count: number | null
+          paid_this_month: boolean | null
+          paid_total: number | null
+          phone: string | null
+          remaining_total: number | null
+          status: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenant"
@@ -875,6 +977,13 @@ export type Database = {
             foreignKeyName: "contract_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -886,6 +995,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_invoice_list: {
+        Row: {
+          contract_id: string | null
+          contract_no: number | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          external_invoice_no: string | null
+          next_due_date: string | null
+          overdue_count: number | null
+          paid: number | null
+          product_desc: string | null
+          remaining: number | null
+          sale_date: string | null
+          sale_type: string | null
+          status: string | null
+          tenant_id: string | null
+          total_payable: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_recent_activity: {
+        Row: {
+          amount: number | null
+          at: string | null
+          contract_id: string | null
+          contract_no: number | null
+          customer_id: string | null
+          customer_name: string | null
+          kind: string | null
+          tenant_id: string | null
+        }
+        Relationships: []
       }
       v_worklist: {
         Row: {
@@ -948,6 +1120,7 @@ export type Database = {
         Args: { p_customer: string; p_lines: Json; p_tenant: string }
         Returns: number
       }
+      fn_normalize_lines: { Args: { p_lines: Json }; Returns: Json }
       import_contract: { Args: { p: Json }; Returns: string }
       installment_status: {
         Args: { p_due: number; p_due_date: string; p_paid: number }
@@ -967,6 +1140,10 @@ export type Database = {
         Returns: string
       }
       update_payment: {
+        Args: { p_id: string; p_lines: Json; p_method: string }
+        Returns: string
+      }
+      update_payment_apply: {
         Args: { p_id: string; p_lines: Json; p_method: string }
         Returns: string
       }
