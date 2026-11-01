@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 
 import { IMPORT_COLUMNS, toImportRows, type ImportRow, type RawRow } from '../../lib/importRows';
 import {
-  applyRowEdit, buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
+  applyRowEdit, removeRowById, buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
   readSpreadsheet, saveRows,
 } from '../import';
 
@@ -253,5 +253,41 @@ describe('applyRowEdit', () => {
     const out = applyRowEdit(unticked, rows[1].id, { address: 'x' }, dup);
     expect(out[0].skip).toBe(false);
     expect(out[0].duplicate).toBe(true);
+  });
+});
+
+describe('applyRowEdit isolation and removal', () => {
+  const dup = [{ phone: '01012345678', product: 'ثلاجة', total: 25000, firstDue: '2025-11-01' }];
+
+  test('other rows stay referentially equal unless their conflict warning changed', () => {
+    const rows = rowsOf(raw(), raw({ phone: '01112345678' }), raw({ phone: '01212345678' }));
+    const out = applyRowEdit(rows, rows[2].id, { address: 'x' }, []);
+    expect(out[0]).toBe(rows[0]);
+    expect(out[1]).toBe(rows[1]);
+    expect(out[2]).not.toBe(rows[2]);
+    const conflict = applyRowEdit(rows, rows[2].id, { phone: '01112345678', name: 'أحمد' }, []);
+    expect(conflict[0]).toBe(rows[0]);
+    expect(conflict[1].warnings.length).toBe(1);
+  });
+
+  test('a duplicate that stays a duplicate keeps the user untick', () => {
+    const rows = markDuplicates(rowsOf(raw()), dup).map((r) => ({ ...r, skip: false }));
+    const out = applyRowEdit(rows, rows[0].id, { address: 'x' }, dup);
+    expect(out[0].duplicate).toBe(true);
+    expect(out[0].skip).toBe(false);
+  });
+
+  test('removeRowById clears the conflict warning and regroups', () => {
+    const two = markNameConflicts(rowsOf(raw(), raw({ name: 'أحمد' })));
+    expect(two[0].warnings.length).toBe(1);
+    const out = removeRowById(two, two[1].id);
+    expect(out.length).toBe(1);
+    expect(out[0].warnings).toEqual([]);
+  });
+
+  test('markNameConflicts clears its own warning once the names agree', () => {
+    const two = markNameConflicts(rowsOf(raw(), raw({ name: 'أحمد' })));
+    const agreed = two.map((r) => ({ ...r, raw: { ...r.raw, name: 'محمود' } }));
+    expect(markNameConflicts(agreed).every((r) => r.warnings.length === 0)).toBe(true);
   });
 });

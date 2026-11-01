@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { FileSpreadsheet, Trash2 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -11,6 +11,7 @@ import {
   markDuplicates,
   markNameConflicts,
   readSpreadsheet,
+  removeRowById,
   useImportSave,
   type ExistingImport,
 } from '../../api/import';
@@ -30,10 +31,15 @@ import { Field } from '../../ui/Field';
 import { Money } from '../../ui/Money';
 import { Screen } from '../../ui/Screen';
 import { StatusChip } from '../../ui/StatusChip';
-import { colors, radius, shadow, size, space, type } from '../../ui/theme';
+import { border, colors, radius, shadow, size, space, type } from '../../ui/theme';
 
-type Existing = Map<string, { id: string; name: string }>;
+type Cust = { id: string; name: string };
 const IS_WEB = Platform.OS === 'web';
+const LOOKUP_DEBOUNCE_MS = 500;
+const FETCH_FAILED = 'تعذر التأكد من العقود المستوردة قبل كده، حاول تاني';
+const FILE_FAILED = 'تعذر قراية الملف، حاول تاني';
+const SAVE_FAILED = 'تعذر الحفظ، حاول تاني';
+const LOOKUP_FAILED = 'تعذر التأكد من العملاء الموجودين، ممكن تكمل وتحفظ عادي';
 
 /** Web only: opens the browser file picker (no file input component in React Native Web). */
 function pickFile(onFile: (f: File) => void) {
@@ -47,22 +53,44 @@ function pickFile(onFile: (f: File) => void) {
   input.click();
 }
 
-function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function FilterChip({
+  label,
+  selected,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled: !!disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={[styles.chip, selected && styles.chipOn]}
+      style={[styles.chip, selected && styles.chipOn, disabled && styles.inactive]}
     >
       <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
 }
 
-function RowCard({
+function Fact({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <View style={styles.fact}>
+      <Text style={styles.factLabel}>{label}</Text>
+      {value}
+    </View>
+  );
+}
+
+// Memoized with stable callbacks: a keystroke in one row re-renders only that row.
+const RowCard = memo(function RowCard({
   row,
   open,
+  locked,
   existing,
   onToggle,
   onEdit,
@@ -71,17 +99,23 @@ function RowCard({
 }: {
   row: ImportRow;
   open: boolean;
-  existing?: { id: string; name: string };
-  onToggle: () => void;
-  onEdit: (key: RawKey, value: string) => void;
-  onSkip: () => void;
-  onRemove: () => void;
+  locked: boolean;
+  existing?: Cust;
+  onToggle: (id: string) => void;
+  onEdit: (id: string, key: RawKey, value: string) => void;
+  onSkip: (id: string) => void;
+  onRemove: (id: string) => void;
 }) {
   const c = row.computed;
-  const locked = row.status === 'saved';
+  const saved = row.status === 'saved';
   return (
     <View style={styles.card}>
-      <Pressable accessibilityRole="button" onPress={onToggle} style={styles.cardHead}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={locked}
+        onPress={() => onToggle(row.id)}
+        style={styles.cardHead}
+      >
         <Text style={styles.name}>{row.raw.name || 'من غير اسم'}</Text>
         <Text style={styles.sub}>{row.raw.product}</Text>
         {c ? (
@@ -98,7 +132,7 @@ function RowCard({
       </Pressable>
 
       <View style={styles.chips}>
-        {row.status === 'saved' ? <StatusChip label="اتحفظ" tone="paid" /> : null}
+        {saved ? <StatusChip label="اتحفظ" tone="paid" /> : null}
         {row.status === 'failed' ? <StatusChip label={row.failure ?? 'فشل الحفظ'} tone="error" /> : null}
         {row.errors.map((e) => (
           <StatusChip key={e} label={e} tone="error" />
@@ -110,92 +144,137 @@ function RowCard({
         {existing ? <StatusChip label={`عميل موجود: ${existing.name}`} tone="partial" /> : null}
       </View>
 
-      {row.duplicate && !locked ? (
-        <FilterChip label="تخطي" selected={row.skip} onPress={onSkip} />
+      {row.duplicate && !saved ? (
+        <FilterChip label="تخطي" selected={row.skip} disabled={locked} onPress={() => onSkip(row.id)} />
       ) : null}
 
-      {open && !locked ? (
+      {open && !saved && !locked ? (
         <View style={styles.editor}>
           {IMPORT_COLUMNS.map((col) => (
             <Field
               key={col.key}
               label={col.header}
               value={row.raw[col.key]}
-              onChangeText={(v) => onEdit(col.key, v)}
+              onChangeText={(v) => onEdit(row.id, col.key, v)}
               autoCapitalize="none"
             />
           ))}
-          <Pressable accessibilityRole="button" onPress={onRemove} style={styles.remove}>
-            <Trash2 size={size.iconSm} color={colors.error} />
+          <Pressable accessibilityRole="button" onPress={() => onRemove(row.id)} style={styles.remove}>
+            <Trash2 size={size.iconSm} color={colors.inkMuted} />
             <Text style={styles.removeText}>شيل الصف ده</Text>
           </Pressable>
         </View>
       ) : null}
     </View>
   );
-}
-
-function Fact({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <View style={styles.fact}>
-      <Text style={styles.factLabel}>{label}</Text>
-      {value}
-    </View>
-  );
-}
+});
 
 export default function ImportScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const save = useImportSave();
   const [rows, setRows] = useState<ImportRow[] | null>(null);
-  const [existingImports, setExistingImports] = useState<ExistingImport[]>([]);
-  const [existing, setExisting] = useState<Existing>(new Map());
+  const existingImports = useRef<ExistingImport[]>([]);
+  const [existing, setExisting] = useState<Map<string, Cust>>(new Map());
+  const looked = useRef<Map<string, Cust | null>>(new Map());
+  const [lookupTick, setLookupTick] = useState(0);
+  const [lookupError, setLookupError] = useState(false);
   const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'review'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const saving = save.isPending;
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/customers'));
 
-  // Look up existing customers for any phone not asked about yet (also after phone edits).
+  // Existing-customer lookup: debounced, only for phones not looked up yet.
   const phonesKey = useMemo(
     () => [...new Set((rows ?? []).map((r) => normalizePhone(r.raw.phone)).filter(Boolean))].sort().join(','),
     [rows],
   );
   useEffect(() => {
     if (!profile || !phonesKey) return;
+    const missing = phonesKey.split(',').filter((p) => !looked.current.has(p));
+    if (missing.length === 0) return;
     let live = true;
-    findExistingCustomers(phonesKey.split(','), profile.tenant_id)
-      .then((m) => live && setExisting(m))
-      .catch(() => {});
+    const t = setTimeout(() => {
+      findExistingCustomers(missing, profile.tenant_id)
+        .then((m) => {
+          if (!live) return;
+          for (const p of missing) looked.current.set(p, m.get(p) ?? null);
+          setExisting((cur) => {
+            const next = new Map(cur);
+            for (const p of missing) {
+              const c = m.get(p);
+              if (c) next.set(p, c);
+              else next.delete(p);
+            }
+            return next;
+          });
+        })
+        .catch(() => live && setLookupError(true));
+    }, LOOKUP_DEBOUNCE_MS);
     return () => {
       live = false;
+      clearTimeout(t);
     };
-  }, [phonesKey, profile]);
+  }, [phonesKey, profile, lookupTick]);
+
+  function reset() {
+    setRows(null);
+    setExisting(new Map());
+    looked.current = new Map();
+    existingImports.current = [];
+    setLookupError(false);
+    setSaved(false);
+    setOpenId(null);
+    setFilter('all');
+    setProgress(null);
+    setError(null);
+  }
 
   async function onFile(file: File) {
+    reset();
     setParsing(true);
-    setParseError(null);
+    let raws;
     try {
-      const { rows: raws, error } = rowsFromSheet(await readSpreadsheet(file));
-      if (error) throw new Error(error);
-      if (raws.length === 0) throw new Error('الملف مفيهوش عقود');
-      const found = await fetchExistingImports();
-      setExistingImports(found);
-      setRows(markDuplicates(markNameConflicts(toImportRows(raws)), found));
-      setSaved(false);
-      setFilter('all');
-      setOpenId(null);
+      const parsed = rowsFromSheet(await readSpreadsheet(file));
+      if (parsed.error) throw new Error(parsed.error);
+      if (parsed.rows.length === 0) throw new Error('الملف مفيهوش عقود');
+      raws = parsed.rows;
     } catch (e) {
       const m = (e as { message?: string } | null)?.message;
-      setParseError(m && /[؀-ۿ]/.test(m) ? m : 'تعذر قراية الملف، حاول تاني');
+      setError(m && /[؀-ۿ]/.test(m) ? m : FILE_FAILED);
+      setParsing(false);
+      return;
+    }
+    try {
+      const found = await fetchExistingImports();
+      existingImports.current = found;
+      setRows(markDuplicates(markNameConflicts(toImportRows(raws)), found));
+    } catch {
+      setError(FETCH_FAILED);
     } finally {
       setParsing(false);
     }
   }
+
+  const onToggle = useCallback((id: string) => setOpenId((cur) => (cur === id ? null : id)), []);
+  const onEdit = useCallback(
+    (id: string, key: RawKey, value: string) =>
+      setRows((cur) => cur && applyRowEdit(cur, id, { [key]: value }, existingImports.current)),
+    [],
+  );
+  const onSkip = useCallback(
+    (id: string) => setRows((cur) => cur && cur.map((x) => (x.id === id ? { ...x, skip: !x.skip } : x))),
+    [],
+  );
+  const onRemove = useCallback((id: string) => {
+    setRows((cur) => cur && removeRowById(cur, id));
+    setOpenId(null);
+  }, []);
 
   const sum = useMemo(() => summarize(rows ?? []), [rows]);
   const pending = (rows ?? []).filter((r) => !r.skip && r.errors.length === 0 && r.status !== 'saved');
@@ -206,18 +285,23 @@ export default function ImportScreen() {
   );
 
   async function onSave() {
-    if (!rows || pending.length === 0) return;
+    if (saving || !rows || pending.length === 0) return;
+    setError(null);
     setProgress({ done: 0, total: pending.length });
     try {
       const out = await save.mutateAsync({ rows, onProgress: (done, total) => setProgress({ done, total }) });
-      setRows(out);
+      const byId = new Map(out.map((r) => [r.id, r]));
+      setRows((cur) => cur && cur.map((r) => byId.get(r.id) ?? r));
       setSaved(true);
+      // Saved customers now exist: look phones up again.
+      looked.current = new Map();
+      setLookupTick((n) => n + 1);
+    } catch {
+      setError(SAVE_FAILED);
     } finally {
       setProgress(null);
     }
   }
-
-  const saving = save.isPending;
 
   return (
     <Screen title="استيراد من إكسل" onBack={goBack}>
@@ -229,7 +313,6 @@ export default function ImportScreen() {
           <Button title="نزّل القالب" variant="secondary" onPress={downloadTemplate} />
           <Text style={styles.step}>2. اختار الملف بعد ما تملاه</Text>
           <Button title="اختار الملف" loading={parsing} onPress={() => pickFile(onFile)} />
-          {parseError ? <StatusChip label={parseError} tone="error" /> : null}
         </>
       ) : (
         <>
@@ -239,10 +322,16 @@ export default function ImportScreen() {
               {`${sum.total} عقد · ${sum.customers} عميل · ${sum.needsReview} محتاجين مراجعة · ${sum.duplicates} موجودين بالفعل`}
             </Text>
           </View>
+          {!saving ? <Button title="اختار ملف تاني" variant="secondary" onPress={reset} /> : null}
 
           <View style={styles.chips}>
-            <FilterChip label="الكل" selected={filter === 'all'} onPress={() => setFilter('all')} />
-            <FilterChip label="محتاج مراجعة" selected={filter === 'review'} onPress={() => setFilter('review')} />
+            <FilterChip label="الكل" selected={filter === 'all'} disabled={saving} onPress={() => setFilter('all')} />
+            <FilterChip
+              label="محتاج مراجعة"
+              selected={filter === 'review'}
+              disabled={saving}
+              onPress={() => setFilter('review')}
+            />
           </View>
 
           {shown.length === 0 ? <Text style={styles.note}>مفيش صفوف هنا</Text> : null}
@@ -251,11 +340,12 @@ export default function ImportScreen() {
               key={r.id}
               row={r}
               open={openId === r.id}
+              locked={saving}
               existing={existing.get(normalizePhone(r.raw.phone))}
-              onToggle={() => setOpenId(openId === r.id ? null : r.id)}
-              onEdit={(key, value) => setRows((cur) => cur && applyRowEdit(cur, r.id, { [key]: value }, existingImports))}
-              onSkip={() => setRows((cur) => cur && cur.map((x) => (x.id === r.id ? { ...x, skip: !x.skip } : x)))}
-              onRemove={() => setRows((cur) => cur && cur.filter((x) => x.id !== r.id))}
+              onToggle={onToggle}
+              onEdit={onEdit}
+              onSkip={onSkip}
+              onRemove={onRemove}
             />
           ))}
 
@@ -278,6 +368,8 @@ export default function ImportScreen() {
           )}
         </>
       )}
+      {error ? <StatusChip label={error} tone="error" /> : null}
+      {lookupError ? <Text style={styles.helper}>{LOOKUP_FAILED}</Text> : null}
     </Screen>
   );
 }
@@ -285,6 +377,7 @@ export default function ImportScreen() {
 const styles = StyleSheet.create({
   step: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },
   note: { ...type.body, color: colors.inkMuted, textAlign: 'center', paddingVertical: space[6] },
+  helper: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,16 +393,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[4],
     borderRadius: radius.pill,
-    borderWidth: 1.5,
+    borderWidth: border.strong,
     borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
   },
   chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  inactive: { opacity: 0.55 },
   chipText: { ...type.label, color: colors.ink },
   chipTextOn: { color: colors.brand },
   card: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hairline,
     borderColor: colors.line,
     borderRadius: radius.lg,
     padding: space[4],
@@ -324,7 +418,7 @@ const styles = StyleSheet.create({
   factLabel: { ...type.helper, color: colors.inkMuted },
   factText: { ...type.bodyStrong, color: colors.ink },
   small: { ...type.helper },
-  editor: { gap: space[3], borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space[3] },
+  editor: { gap: space[3], borderTopWidth: border.hairline, borderTopColor: colors.line, paddingTop: space[3] },
   remove: { flexDirection: 'row', alignItems: 'center', gap: space[2], minHeight: size.tapMin },
-  removeText: { ...type.label, color: colors.error },
+  removeText: { ...type.label, color: colors.inkMuted },
 });

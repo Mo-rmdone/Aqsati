@@ -134,14 +134,17 @@ export function markNameConflicts(rows: ImportRow[]): ImportRow[] {
   }
   return rows.map((r) => {
     const p = normalizePhone(r.raw.phone);
-    if (!p || (names.get(p)?.size ?? 0) < 2 || r.warnings.includes(NAME_CONFLICT)) return r;
-    return { ...r, warnings: [...r.warnings, NAME_CONFLICT] };
+    const want = !!p && (names.get(p)?.size ?? 0) >= 2;
+    const has = r.warnings.includes(NAME_CONFLICT);
+    if (want === has) return r;
+    return { ...r, warnings: want ? [...r.warnings, NAME_CONFLICT] : r.warnings.filter((w) => w !== NAME_CONFLICT) };
   });
 }
 
 /**
- * Inline edit: update raw, re-validate, refresh name-conflict warnings, re-check duplicate for the
- * edited row only (other rows keep their skip choice), then regroup customers. The row id never changes.
+ * Inline edit: update raw and re-validate the edited row only, re-check its duplicate flag (a row that
+ * stays a duplicate keeps the user's skip choice; a newly found duplicate is skipped), refresh name-conflict
+ * warnings, then regroup customers. The row id never changes; untouched rows keep their identity.
  */
 export function applyRowEdit(
   rows: ImportRow[],
@@ -150,15 +153,18 @@ export function applyRowEdit(
   existing: ExistingImport[],
 ): ImportRow[] {
   const edited = rows.map((r) => {
-    const raw = r.id === id ? { ...r.raw, ...patch } : r.raw;
-    const v = validateRow(raw);
-    const base = { ...r, raw, ...v, warnings: v.warnings };
-    if (r.id !== id) return base;
-    return markDuplicates([{ ...base, duplicate: false, skip: false }], existing)[0];
+    if (r.id !== id) return r;
+    const raw = { ...r.raw, ...patch };
+    const base = { ...r, raw, ...validateRow(raw), duplicate: false, skip: false };
+    // validateRow rebuilds warnings, so the name-conflict one is re-added by markNameConflicts below.
+    const next = markDuplicates([base], existing)[0];
+    return next.duplicate && r.duplicate ? { ...next, skip: r.skip } : next;
   });
-  // Warnings of untouched rows were rebuilt above, so conflicts are recomputed from scratch.
-  const withDup = edited.map((r, i) => (r.id === id ? r : { ...r, duplicate: rows[i].duplicate, skip: rows[i].skip }));
-  return regroupCustomers(markNameConflicts(withDup));
+  return regroupCustomers(markNameConflicts(edited));
+}
+
+export function removeRowById(rows: ImportRow[], id: string): ImportRow[] {
+  return regroupCustomers(markNameConflicts(rows.filter((r) => r.id !== id)));
 }
 
 const ARABIC = /[؀-ۿ]/;
