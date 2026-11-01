@@ -124,8 +124,8 @@ insert into tap(l) select is((select sale_date from public.v_invoice_list where 
 
 -- recent activity
 insert into tap(l) select is((select count(*)::int from public.v_recent_activity where tenant_id = current_setting('t.v')::uuid and kind = 'sale'),
-  (select count(*)::int from public.contract where tenant_id = current_setting('t.v')::uuid and status <> 'void'),
-  'activity: one sale row per (non-void) contract');
+  (select count(*)::int from public.contract where tenant_id = current_setting('t.v')::uuid and status <> 'void' and interest_method <> 'imported'),
+  'activity: one sale row per (non-void, non-imported) contract');
 insert into tap(l) select is((select count(*)::int from public.v_recent_activity where tenant_id = current_setting('t.v')::uuid and kind = 'payment'),
   (select count(*)::int from public.payment p join public.contract c on c.id = p.contract_id
      where p.tenant_id = current_setting('t.v')::uuid and not p.is_opening and c.status <> 'void'),
