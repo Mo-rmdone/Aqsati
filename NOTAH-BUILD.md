@@ -274,6 +274,14 @@ Steps, in order:
 5. **Cash:** contract (`num_installments = 0`, `down_payment = total_price`, rate 0, method 'zero'), one payment of the full price with `received_at = least(sale_date, now())`, and a `payment_line(kind='cash')`.
 6. **Installment:** validate `0 ≤ down < price` (`'المقدم لازم يكون أقل من السعر'`), `0 ≤ rate ≤ 200` (`'نسبة الفائدة لازم تكون بين 0 و 200'`), `1 ≤ years ≤ 5` (`'عدد السنين لازم يكون من 1 إلى 5'`). Insert contract (`interest_rate = rate/100`, `num_installments = years×12`, `start_date = sale_date`), installments from `build_schedule(price − down, rate/100, years×12, sale_date)`, and if down > 0 a payment + `payment_line(kind='down_payment')` with `received_at = least(sale_date, now())`.
 
+### 4.4b `import_contract(p jsonb) returns uuid` — security definer, granted to `authenticated`
+Imports one running installment contract from the paper ledger. Input keys: `id`, `customer_id`, `product_desc`, `total_price` (incl. interest), `down_payment`, `monthly`, `first_due` (date), `paid_months`, `external_invoice_no`. Same auth/lock/idempotency opening as `create_sale`.
+1. Customer in tenant; product required; price > 0; `0 ≤ down < total` (`'المقدم لازم يكون أقل من المبلغ الكلي'`); `0 < monthly ≤ total − down`.
+2. `first_due` ≤ Cairo today + 1 month (`'أول شهر اتدفع بعيد في المستقبل'`); count = `ceil(remaining / monthly)` ≤ 600; `paid_months ≤ count`.
+3. Contract: `interest_method = 'imported'`, rate 0, `num_installments = count`, `start_date = first_due − 1 month`. Installments: `monthly × (count−1)`, last = remainder, due day clamped to month end.
+4. Down payment (if > 0): payment + `payment_line(kind='down_payment')`, `is_opening = true`. Paid months (if > 0): one cash payment of the first N installments' sum, `is_opening = true`, applied via `fn_apply_payment_lines`. Statuses refreshed.
+5. `v_collections_kpi` excludes `is_opening` payments.
+
 ### 4.5 Payments: shared validation `fn_check_payment_lines(tenant, customer, lines jsonb) returns numeric`
 `lines` = `[{ "contract_id": uuid, "amount": number }, …]`. Iterate lines **sorted by contract_id** (deadlock-safe lock order):
 - empty/not an array → `'لازم تحدد عقد واحد على الأقل'`
@@ -391,6 +399,8 @@ Web: `app.json` → `web.output: "single"`, `web.lang: "ar"`; set `document.docu
 
 **Edit payment** — same form prefilled; offers the payment's own contracts (even if settled) + the customer's other open contracts; remaining = current + own line.
 
+**Import (`/import`)** — pick .xlsx/.csv (max 500 rows, 5 MB) or download the template (12 Arabic headers). Rows are parsed/normalized, computed (remaining, count, last installment) and shown in a preview with inline edit, per-row errors/warnings, duplicate detection (phone + product + total + first month, skipped by default; "تخطي" chip) and a summary count. Save runs row by row (customer reuse by phone within the shop, then `import_contract` with a per-row attempt id); inputs are locked while saving; failed rows stay listed for retry.
+
 **Settings** — shop name, "تسجيل الخروج".
 
 All screens: loading, error-with-retry, and empty states. No blank screens, no infinite spinners.
@@ -443,6 +453,7 @@ Helper `tests.as_new_owner(shop text)` (security definer, revoked from clients):
 - create_sale: installment 25000/10000/30%/2y → 24 installments, sum 19,500, one 10,000 down-payment line; cash 7000 → 0 installments, payment 7000, remaining 0; same id twice → one contract, one payment; exact Arabic errors for down ≥ price, years 6, other shop's customer, future date; no rows written on rejection; backdated sale's payment `received_at` = sale date and excluded from this month's KPI.
 - record_payment: 2000 split 1000/1000 across two contracts → each `paid` +1000, one receipt; oldest-first (1000 on 812.50/month → #1 paid, #2 partial 187.50); overpay rejected, nothing changed; zero/foreign/duplicate/other-customer lines rejected; same id twice → one payment.
 - update_payment: 5000→500 equals a fresh 500; editing A leaves B's allocations untouched and no negative `amount_paid`; move money to another contract; overpay on edit rejected and payment unchanged; audit row with before/after and `edited_at` set; down payment not editable.
+- import_contract (`import_contract_test.sql`): schedule/remainder, down + opening payments flagged `is_opening`, excluded from KPI, idempotent on id, future-date / 600-cap / paid_months / foreign-customer rejections.
 - v_contract_balance for a legacy contract with down payment and no lines: remaining = installment balance.
 
 ### 9.2 App (jest)
@@ -450,6 +461,7 @@ Helper `tests.as_new_owner(shop text)` (security definer, revoked from clients):
 - Validation messages equal the server's; Arabic-Indic digits normalized; 2-decimal caps; impossible dates (2026-02-30) rejected.
 - `idForAttempt`/`useAttempt`: retry keeps id, edit after failure → new id, two sequential successful identical submits → different ids.
 - `validateSplit`, `autoSplit`, `editableContracts`, `sortWorklist`, `formatDateAr`, `whatsappLink`, `escapeSearch`, `customerSelect`, `prefillFromSearch`, auth error mapping.
+- Import (`importRows.test.ts`, `importSummary.test.ts`): header/alias mapping, phone normalization, raw date serials, count/last-installment math, duplicate keys, summary counts.
 - Auth state machine: stale-closure regression (refreshProfile uses the live session), pending-signup provisioned once and restored on failure, sign-out clears profile/shopName/cache, loading always ends, transient error keeps the profile.
 
 ---
@@ -466,6 +478,7 @@ Helper `tests.as_new_owner(shop text)` (security definer, revoked from clients):
 8. Copying links out of RTL text can inject invisible characters into URLs.
 9. The free Supabase project pauses after a week idle → deploy the keepalive from day one.
 10. Server "today" must be the Cairo date, or early-morning sales get rejected as "future".
+11. Excel phone cells lose the leading 0 and date cells read as JS Dates shift a day → normalize phones (re-add the 0, Arabic digits) and read raw serials/strings, not Date objects.
 
 ---
 

@@ -30,7 +30,8 @@ The owner records every sale as an invoice (cash or installment). Notah calculat
 | End-to-end acceptance by the owner (signed in) | ⏳ Not yet run — see §9 |
 | Screen designs from Claude Design | ⏳ Not received yet |
 | Phase 2: Android/iOS app + offline | ⏳ Not started |
-| Excel import, voice commands, ID-card OCR | ⏳ Not started |
+| Excel import (customers + running contracts + paid months) | ✅ Built (pending deploy) |
+| Voice commands, ID-card OCR | ⏳ Not started |
 | Landing page | ⏳ Not started |
 | Islamic-finance (Shariah) review of pricing | ⏳ Pending, external |
 
@@ -77,6 +78,15 @@ due(i)    = sale_date + i months                // first installment one month a
 - The owner not knowing whether something was saved.
 - The app being slower or harder than the paper ledger.
 
+### 3.6 Excel import
+- **One row = one running installment contract** (customer + product + schedule + paid months). Columns (Arabic headers): اسم العميل، الموبايل، الرقم القومي، العنوان، السلعة، المبلغ الكلي، المقدم، القسط الشهري، عدد الشهور المدفوعة، أول شهر اتدفع، آخر شهر اتدفع، رقم الفاتورة. A downloadable template is provided.
+- **المبلغ الكلي = total price including interest.** Remaining = total − down. Installment count = `ceil(remaining / monthly)`; the last installment absorbs the remainder.
+- First due = "أول شهر اتدفع" (month only → day 1). Paid months are recorded as **one editable payment** marked "رصيد افتتاحي" (opening balance, oldest installments first).
+- The imported down payment and the opening balance are **excluded from "collected this month"**.
+- **Re-upload safety:** a row whose phone + product + total + first month already exists is skipped by default (can be overridden per row).
+- **Same phone = same customer:** an existing customer is reused untouched (never overwritten).
+- Limits: max 500 rows, 5 MB. The user sees a **preview with inline edit** before saving. Saving is row-by-row and retry-safe (client UUID per row); failures are listed and can be retried.
+
 ---
 
 ## 4. Architecture
@@ -102,9 +112,9 @@ docs/        Specs, plans, brand, design system, this project's history.
 | `tenant` | A shop. |
 | `profile` | User ↔ shop, role (`owner` now; manager/accountant/collector/viewer supported in DB). |
 | `customer` | Shop's customers. |
-| `contract` | An invoice. `sale_type` cash/installment, `contract_no` per shop, `external_invoice_no`, price, down payment, rate, `num_installments`, `start_date`. |
+| `contract` | An invoice. `sale_type` cash/installment, `contract_no` per shop, `external_invoice_no`, price, down payment, rate, `num_installments`, `start_date`. `interest_method` includes `'imported'` (explicit schedule, any installment count ≥ 1). |
 | `installment` | Schedule rows: `seq_no`, `due_date`, `amount_due`, `amount_paid`, `status` (pending/partial/paid/overdue). |
-| `payment` | A receipt: `receipt_no` per shop, amount, method (cash/instapay/fawry/wallet/card/bank), `received_at`, `edited_at`. |
+| `payment` | A receipt: `receipt_no` per shop, amount, method (cash/instapay/fawry/wallet/card/bank), `received_at`, `edited_at`, `is_opening` (money from before Notah; excluded from "collected this month"). |
 | `payment_line` | The owner's split of a payment per contract (`kind` down_payment/cash/installment). |
 | `payment_allocation` | Per-installment detail of where money went. |
 | `audit_log` | Every change (triggers) + explicit `payment_edit` rows. |
@@ -117,6 +127,7 @@ Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining
 |---|---|
 | `signup_tenant(p_tenant_name, p_full_name)` | Creates the shop + owner profile after signup. |
 | `create_sale(p jsonb)` | Creates an invoice: contract, schedule, down-payment/cash payment. Idempotent on client `id`. Rejects future sale dates (Cairo date). |
+| `import_contract(p jsonb)` | Imports one running contract. Keys: `id` (client uuid), `customer_id`, `product_desc`, `total_price` (incl. interest), `down_payment`, `monthly`, `first_due` (date), `paid_months`, `external_invoice_no`. Checks: down < total; 0 < monthly ≤ remaining; first due ≤ Cairo today + 1 month; ≤ 600 installments; paid_months ≤ count. Builds the schedule (last absorbs remainder), down payment and one opening-balance payment (`is_opening`). Idempotent on `id`. |
 | `record_payment(p_id, p_customer, p_method, p_lines jsonb)` | One receipt split across contracts; validates ownership, rejects overpayment; idempotent on `p_id`. |
 | `update_payment(p_id, p_method, p_lines jsonb)` | Edits a payment: reverses its allocations, re-validates, re-allocates, audits. |
 | `build_schedule(...)`, `allocate_payment(...)` | Internal money math. |
@@ -136,6 +147,7 @@ Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining
 | `/sale/new` (center "+ فاتورة") | New invoice with customer search or **عميل جديد**, cash/installment, live preview (monthly installment is the hero number). |
 | `/contract/[id]` | Contract: balance, installment table, payments, edit. |
 | `/payment/new`, `/payment/[id]/edit` | Record / edit a split payment. |
+| `/import` | Excel import: pick file, preview/edit rows, save row-by-row. |
 | `/settings` (tab) | Shop name, sign out. |
 
 Forms (`sale/new`, `payment/*`, `contract/*`) live in a Stack above the tabs so they unmount when closed and never carry state into the next sale.
@@ -209,7 +221,7 @@ npx wrangler deploy           # publish worker "notah"
 2. Apply the **screen designs** from Claude Design when delivered (9 screens at 390×844).
 
 ### Next features (owner's priority order)
-3. **Excel import** of customers from the paper ledger: downloadable template, preview before saving ("198 customers, 2 missing phone"). *Open question:* customers only, or with their existing installments and payments too?
+3. ~~**Excel import**~~ ✅ Done (pending deploy): customers + running contracts + paid months, template, preview/edit before saving. See §3.6.
 4. **Voice commands** in Egyptian Arabic, fixed phrases ("افتح ملف العميل …", "أضف قسط جديد", "أضف عقد جديد") + an in-app guide. Any money action opens the filled form for confirmation — never saves by voice alone.
 5. **ID-card scanning (OCR):** photograph front and back of the Egyptian national ID, extract name, address, national ID (and derive birth date / gender / governorate), store images securely in the customer file; owner reviews before saving.
 
