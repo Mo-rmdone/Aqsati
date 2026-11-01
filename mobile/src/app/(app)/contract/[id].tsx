@@ -191,7 +191,7 @@ export default function ContractDetail() {
       <View style={styles.meta}>
         <Text style={styles.sub}>عقد #{contract.contract_no} ·</Text>
         <CustomerLink customerId={contract.customer_id} />
-        <Text style={styles.sub}>· {formatDateAr(localDateISO(contract.created_at))}</Text>
+        <Text style={styles.sub}>· {formatDateAr(contract.start_date ?? localDateISO(contract.created_at))}</Text>
       </View>
 
       {desktop ? null : payButton}
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
-  crumb: { ...type.helper, color: colors.inkMuted },
+  crumb: { ...type.body, color: colors.inkMuted },
   sub: { ...type.body, color: colors.inkMuted },
   tilesRow: { flexDirection: 'row', gap: space[4] },
   tilesCol: { gap: space[3] },
@@ -249,9 +249,9 @@ const styles = StyleSheet.create({
   fill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.brand },
   cols: { flexDirection: 'row', gap: space[6], alignItems: 'flex-start' },
   col: { flex: 1, gap: space[4] },
-  side: { width: 320 },
+  side: { width: size.sideColumn },
   kv: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[4] },
-  label: { ...type.helper, color: colors.inkMuted },
+  label: { ...type.body, color: colors.inkMuted },
   value: { ...type.bodyStrong, color: colors.ink, flexShrink: 1, textAlign: 'right' },
   heading: { ...type.title3, color: colors.ink, textAlign: 'right' },
   empty: { ...type.body, color: colors.inkMuted, textAlign: 'center' },
@@ -259,6 +259,6 @@ const styles = StyleSheet.create({
   link: { ...type.label, color: colors.brand, textAlign: 'right' },
   toggle: { minHeight: size.tapMin, justifyContent: 'center' },
   chips: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
-  cell: { ...type.helper, color: colors.ink, textAlign: 'right' },
-  small: { ...type.helper },
+  cell: { ...type.body, color: colors.ink, textAlign: 'right' },
+  small: { ...type.body },
 });
