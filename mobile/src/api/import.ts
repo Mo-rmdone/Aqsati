@@ -3,9 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 
 import { useAuth } from '../lib/auth';
+import { normalizeDigits } from './sales';
 import {
   IMPORT_COLUMNS,
   normalizePhone,
+  toP,
   regroupCustomers,
   validateRow,
   type ImportRow,
@@ -17,12 +19,20 @@ export type ExistingImport = { phone: string; product: string; total: number; fi
 
 const GENERIC_FAILURE = 'تعذر حفظ العقد، حاول مرة تانية';
 const NAME_CONFLICT = 'نفس الموبايل بأسماء مختلفة';
+const FILE_DUP = 'الصف ده متكرر في الملف';
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const FILE_TOO_BIG = 'الملف كبير جدًا (أقصى حجم 5 ميجا)';
 const FILE_UNREADABLE = 'تعذر قراية الملف، اتأكد إنه xlsx أو csv';
 
-/** First sheet as a matrix of raw values; dates stay Excel serials (never JS Dates). */
+const isBinaryWorkbook = (b: Uint8Array) =>
+  (b[0] === 0x50 && b[1] === 0x4b) || (b[0] === 0xd0 && b[1] === 0xcf); // zip (xlsx) or OLE (xls)
+
+/**
+ * First sheet as a matrix of raw values; xlsx dates stay Excel serials (never JS Dates).
+ * CSV is decoded as UTF-8 (BOM optional) and every cell stays a string, so phones keep their
+ * leading 0, "1.250" stays text and dd/mm/yyyy is read by parseMonth (not guessed as m/d).
+ */
 export async function readSpreadsheet(file: {
   arrayBuffer(): Promise<ArrayBuffer>;
 }): Promise<unknown[][]> {
@@ -30,7 +40,17 @@ export async function readSpreadsheet(file: {
   if (buf.byteLength > MAX_FILE_BYTES) throw new Error(FILE_TOO_BIG);
   try {
     // header + 500 data rows + 1 extra so rowsFromSheet can still report "more than 500".
-    const wb = XLSX.read(buf, { type: 'array', cellDates: false, sheetRows: 502, sheets: 0, dense: true });
+    const bytes = new Uint8Array(buf);
+    const opts = { cellDates: false, sheetRows: 502, sheets: 0, dense: true } as const;
+    let wb: XLSX.WorkBook;
+    if (isBinaryWorkbook(bytes)) {
+      wb = XLSX.read(buf, { type: 'array', ...opts });
+    } else if (typeof TextDecoder !== 'undefined') {
+      const text = new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
+      wb = XLSX.read(text, { type: 'string', raw: true, ...opts });
+    } else {
+      wb = XLSX.read(buf, { type: 'array', codepage: 65001, raw: true, ...opts });
+    }
     const sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) return [];
     return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' });
@@ -86,7 +106,7 @@ export function downloadTemplate(): void {
 }
 
 const dupKey = (phone: string, product: string, total: number, firstDue: string) =>
-  `${phone}|${product.trim()}|${total}|${firstDue.slice(0, 7)}`;
+  `${phone}|${product.trim()}|${toP(total)}|${firstDue.slice(0, 7)}`;
 
 export function markDuplicates(rows: ImportRow[], existing: ExistingImport[]): ImportRow[] {
   const keys = new Set(existing.map((e) => dupKey(normalizePhone(e.phone), e.product, Number(e.total), e.firstDue)));
@@ -141,6 +161,22 @@ export function markNameConflicts(rows: ImportRow[]): ImportRow[] {
   });
 }
 
+/** Warn on the 2nd+ row that repeats an earlier row of the same file (same key as the re-upload check). */
+export function markFileDuplicates(rows: ImportRow[]): ImportRow[] {
+  const seen = new Set<string>();
+  return rows.map((r) => {
+    let want = false;
+    if (r.computed) {
+      const k = dupKey(normalizePhone(r.raw.phone), r.raw.product, r.computed.total, r.computed.firstDue);
+      want = seen.has(k);
+      seen.add(k);
+    }
+    const has = r.warnings.includes(FILE_DUP);
+    if (want === has) return r;
+    return { ...r, warnings: want ? [...r.warnings, FILE_DUP] : r.warnings.filter((w) => w !== FILE_DUP) };
+  });
+}
+
 /**
  * Inline edit: update raw and re-validate the edited row only, re-check its duplicate flag (a row that
  * stays a duplicate keeps the user's skip choice; a newly found duplicate is skipped), refresh name-conflict
@@ -155,23 +191,36 @@ export function applyRowEdit(
   const edited = rows.map((r) => {
     if (r.id !== id) return r;
     const raw = { ...r.raw, ...patch };
-    const base = { ...r, raw, ...validateRow(raw), duplicate: false, skip: false };
+    const base: ImportRow = {
+      ...r, raw, ...validateRow(raw), duplicate: false, skip: false,
+      status: r.status === 'failed' ? 'pending' : r.status,
+      failure: r.status === 'failed' ? undefined : r.failure,
+    };
     // validateRow rebuilds warnings, so the name-conflict one is re-added by markNameConflicts below.
     const next = markDuplicates([base], existing)[0];
     return next.duplicate && r.duplicate ? { ...next, skip: r.skip } : next;
   });
-  return regroupCustomers(markNameConflicts(edited));
+  return regroupCustomers(markFileDuplicates(markNameConflicts(edited)));
 }
 
 export function removeRowById(rows: ImportRow[], id: string): ImportRow[] {
-  return regroupCustomers(markNameConflicts(rows.filter((r) => r.id !== id)));
+  return regroupCustomers(markFileDuplicates(markNameConflicts(rows.filter((r) => r.id !== id))));
 }
 
 const ARABIC = /[؀-ۿ]/;
-function failureMessage(e: unknown): string {
-  const m = (e as { message?: unknown } | null)?.message;
-  return typeof m === 'string' && ARABIC.test(m) ? m : GENERIC_FAILURE;
+const PG_MESSAGES: Record<string, string> = {
+  '23514': 'في بيانات مش صحيحة في الصف ده، راجعها', // check_violation
+  '22003': 'المبلغ كبير جدًا', // numeric_value_out_of_range
+  '42501': 'حسابك مش مسموح له يستورد', // insufficient_privilege / RLS
+};
+export function failureMessage(e: unknown): string {
+  const err = e as { message?: unknown; code?: unknown } | null;
+  if (typeof err?.message === 'string' && ARABIC.test(err.message)) return err.message;
+  if (typeof err?.code === 'string' && PG_MESSAGES[err.code]) return PG_MESSAGES[err.code];
+  return GENERIC_FAILURE;
 }
+
+const oneLine = (s: string) => s.trim().replace(/\s+/g, ' ');
 
 /** Existing customers of this shop by (normalized) phone; the oldest wins when several share one. */
 export async function findExistingCustomers(
@@ -209,6 +258,20 @@ export async function saveRows(
   let done = 0;
   onProgress(0, total);
 
+  // One lookup for every phone up front; if it fails nothing is sent (a blind create could duplicate a customer).
+  let existingByPhone: Map<string, { id: string; name: string }>;
+  try {
+    existingByPhone = await findExistingCustomers(
+      rows.filter(todo).map((r) => normalizePhone(r.raw.phone)),
+      tenantId,
+    );
+  } catch (e) {
+    const failure = failureMessage(e);
+    for (let i = 0; i < rows.length; i++) if (todo(rows[i])) result[i] = { ...rows[i], status: 'failed', failure };
+    onProgress(total, total);
+    return result;
+  }
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (!todo(r)) continue;
@@ -216,19 +279,19 @@ export async function saveRows(
       const phone = normalizePhone(r.raw.phone);
       let customerId = customerByPhone.get(phone);
       if (!customerId) {
-        const found = (await findExistingCustomers([phone], tenantId)).get(phone);
+        const found = existingByPhone.get(phone);
         if (found) {
           customerId = found.id;
         } else {
-          const first = rows.find((x) => normalizePhone(x.raw.phone) === phone) ?? r;
+          const first = rows.find((x) => todo(x) && normalizePhone(x.raw.phone) === phone) ?? r;
           const { error: upErr } = await supabase.from('customer').upsert(
             {
               id: first.customerId,
               tenant_id: tenantId,
-              name: first.raw.name.trim(),
+              name: oneLine(first.raw.name),
               phone,
-              national_id: first.raw.nationalId.trim() || null,
-              address: first.raw.address.trim() || null,
+              national_id: normalizeDigits(first.raw.nationalId).replace(/\s/g, '') || null,
+              address: oneLine(first.raw.address) || null,
             },
             { onConflict: 'id', ignoreDuplicates: true },
           );

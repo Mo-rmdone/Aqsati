@@ -1,9 +1,9 @@
 import * as XLSX from 'xlsx';
 
-import { IMPORT_COLUMNS, toImportRows, type ImportRow, type RawRow } from '../../lib/importRows';
+import { IMPORT_COLUMNS, rowsFromSheet, toImportRows, type ImportRow, type RawRow } from '../../lib/importRows';
 import {
   applyRowEdit, removeRowById, buildTemplateWorkbook, fetchExistingImports, findExistingCustomers, markDuplicates, markNameConflicts,
-  readSpreadsheet, saveRows,
+  readSpreadsheet, saveRows, markFileDuplicates,
 } from '../import';
 
 jest.mock('expo-crypto', () => {
@@ -135,11 +135,109 @@ test('a customer upsert error becomes the generic Arabic message', async () => {
   expect(mockRpc).not.toHaveBeenCalled();
 });
 
-test('customer fields come from the first row of the phone group in file order', async () => {
+test('customer fields come from the first valid, non-skipped row of the phone group', async () => {
   const rows = rowsOf(raw({ name: 'الأول', address: 'عنوان 1' }), raw({ name: 'التاني', address: 'عنوان 2', product: 'غسالة' }));
-  rows[0] = { ...rows[0], skip: true }; // first row is not sent, its data still wins
+  rows[0] = { ...rows[0], skip: true };
   await saveRows(rows, jest.fn(), ctx);
-  expect(mockUpsert.mock.calls[0][0]).toMatchObject({ name: 'الأول', address: 'عنوان 1', id: rows[0].customerId });
+  expect(mockUpsert.mock.calls[0][0]).toMatchObject({ name: 'التاني', address: 'عنوان 2', id: rows[0].customerId });
+});
+
+test('a first row with an error (empty name) never supplies the customer', async () => {
+  const rows = rowsOf(raw({ name: '' }), raw({ name: 'التاني', product: 'غسالة' }));
+  expect(rows[0].errors.length).toBeGreaterThan(0);
+  await saveRows(rows, jest.fn(), ctx);
+  expect(mockUpsert.mock.calls[0][0]).toMatchObject({ name: 'التاني' });
+});
+
+test('customer is saved with the same normalized national id / name / address that were validated', async () => {
+  const rows = rowsOf(raw({ nationalId: '٢٩٠٠١٠١ ١٢٣٤٥٦٧', name: '  محمود   علي ', address: ' المنصورة   شارع ١ ' }));
+  expect(rows[0].errors).toEqual([]);
+  await saveRows(rows, jest.fn(), ctx);
+  expect(mockUpsert.mock.calls[0][0]).toMatchObject({
+    national_id: '29001011234567', name: 'محمود علي', address: 'المنصورة شارع ١',
+  });
+});
+
+test('existing customers are looked up once for the whole save', async () => {
+  const rows = rowsOf(raw(), raw({ phone: '01112345678' }), raw({ phone: '01212345678' }));
+  await saveRows(rows, jest.fn(), ctx);
+  expect(mockLookup).toHaveBeenCalledTimes(1);
+});
+
+test('a failed prefetch fails the todo rows without sending anything', async () => {
+  mockLookup.mockResolvedValue({ data: null, error: { message: 'x', code: '42501' } });
+  const out = await saveRows(rowsOf(raw()), jest.fn(), ctx);
+  expect(out[0]).toMatchObject({ status: 'failed', failure: 'حسابك مش مسموح له يستورد' });
+  expect(mockRpc).not.toHaveBeenCalled();
+  expect(mockUpsert).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['23514', 'في بيانات مش صحيحة في الصف ده، راجعها'],
+  ['22003', 'المبلغ كبير جدًا'],
+  ['42501', 'حسابك مش مسموح له يستورد'],
+  ['XX000', 'تعذر حفظ العقد، حاول مرة تانية'],
+])('postgres code %s maps to an Arabic message', async (code, msg) => {
+  mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'new row violates', code } });
+  const out = await saveRows(rowsOf(raw()), jest.fn(), ctx);
+  expect(out[0].failure).toBe(msg);
+});
+
+describe('csv reading', () => {
+  const csv = (text: string, bom = false) => {
+    const bytes = new TextEncoder().encode((bom ? '﻿' : '') + text);
+    return { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer };
+  };
+  const head = IMPORT_COLUMNS.map((c) => c.header).join(',');
+
+  test('BOM-less UTF-8 Arabic headers are read as Arabic', async () => {
+    const m = await readSpreadsheet(csv(`${head}\nمحمود,01012345678`));
+    expect(m[0]).toEqual(IMPORT_COLUMNS.map((c) => c.header));
+  });
+
+  test('BOM is stripped', async () => {
+    const m = await readSpreadsheet(csv(`${head}\nx`, true));
+    expect(m[0][0]).toBe(IMPORT_COLUMNS[0].header);
+  });
+
+  test('dd/mm/yyyy, dot-thousands and leading zeros survive as text', async () => {
+    const line = 'محمود,01012345678,,,ثلاجة,1.250,0,1.250,0,05/11/2025,,';
+    const { rows } = rowsFromSheet(await readSpreadsheet(csv(`${head}\n${line}`)));
+    expect(rows[0].phone).toBe('01012345678');
+    expect(rows[0].total).toBe('1.250');
+    const r = toImportRows(rows)[0];
+    expect(r.warnings).toContain('اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف');
+    const ok = toImportRows(rowsFromSheet(await readSpreadsheet(csv(
+      `${head}\nمحمود,01012345678,,,ثلاجة,25000,10000,1000,0,05/11/2025,,`))).rows)[0];
+    expect(ok.computed?.firstDue).toBe('2025-11-05');
+  });
+});
+
+describe('review fixes', () => {
+  test('amounts above 999,999,999,999.99 are a row error', () => {
+    const r = rowsOf(raw({ total: '1000000000000', down: '0', monthly: '1000000000000' }))[0];
+    expect(r.errors).toContain('المبلغ كبير جدًا');
+    expect(r.computed).toBeNull();
+  });
+
+  test('editing a failed row clears its failure and resets status', () => {
+    const rows = rowsOf(raw()).map((r) => ({ ...r, status: 'failed' as const, failure: 'boom' }));
+    const out = applyRowEdit(rows, rows[0].id, { product: 'غسالة' }, []);
+    expect(out[0].status).toBe('pending');
+    expect(out[0].failure).toBeUndefined();
+  });
+
+  test('duplicate key rounds the total to piasters', () => {
+    const out = markDuplicates(rowsOf(raw({ total: '25000.004' })), [
+      { phone: '01012345678', product: 'ثلاجة', total: 25000, firstDue: '2025-11-01' },
+    ]);
+    expect(out[0].duplicate).toBe(true);
+  });
+
+  test('identical rows inside one file: the later one gets a warning', () => {
+    const out = markFileDuplicates(rowsOf(raw(), raw(), raw({ product: 'غسالة' })));
+    expect(out.map((r) => r.warnings.includes('الصف ده متكرر في الملف'))).toEqual([false, true, false]);
+  });
 });
 
 test('markDuplicates compares the month, trims product, tolerates string/number total', () => {
@@ -244,7 +342,7 @@ describe('applyRowEdit', () => {
     expect(two[0].warnings.length).toBe(1);
     const fixed = applyRowEdit(two, two[1].id, { name: 'محمود' }, []);
     expect(fixed[0].warnings).toEqual([]);
-    expect(fixed[1].warnings).toEqual([]);
+    expect(fixed[1].warnings).toEqual(['الصف ده متكرر في الملف']); // identical rows now flagged as in-file duplicates
   });
 
   test('an untouched duplicate keeps the user untick', () => {

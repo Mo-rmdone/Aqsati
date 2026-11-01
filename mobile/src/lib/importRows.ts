@@ -98,6 +98,9 @@ function iso(y: number, m: number, d: number): string | null {
   return `${pad(y, 4)}-${pad(m)}-${pad(d)}`;
 }
 
+const MAX_AMOUNT = 999_999_999_999.99;
+const AMOUNT_TOO_BIG = 'المبلغ كبير جدًا';
+
 export function parseMonth(cell: string): string | null {
   const t = normalizeDigits(cell).trim();
   let m: RegExpMatchArray | null;
@@ -114,7 +117,7 @@ export function parseMonth(cell: string): string | null {
   return null;
 }
 
-const toP = (egp: number) => Math.round(Number((egp * 100).toFixed(6)));
+export const toP = (egp: number) => Math.round(Number((egp * 100).toFixed(6)));
 
 export function computeContract(r: {
   total: number; down: number; monthly: number; paidMonths: number; firstDue: string;
@@ -164,6 +167,8 @@ export function validateRow(
   if (paid === null || !Number.isInteger(paid)) errors.push('عدد الشهور المدفوعة لازم يكون رقم صحيح (0 لو مفيش)');
   if (!firstDue) errors.push('أول شهر اتدفع غير صحيح');
 
+  if ([total, down, monthly].some((v) => v !== null && v > MAX_AMOUNT)) errors.push(AMOUNT_TOO_BIG);
+
   for (const cell of [raw.total, raw.down, raw.monthly]) {
     if (/^\d{1,3}(\.\d{3})+$/.test(stripAmount(cell))) {
       warnings.push('اتأكد من المبلغ: النقطة هنا ممكن تكون فاصل آلاف');
@@ -171,7 +176,8 @@ export function validateRow(
     }
   }
 
-  if (total === null || down === null || monthly === null || paid === null || !firstDue || total <= 0 || monthly <= 0)
+  if (total === null || down === null || monthly === null || paid === null || !firstDue || total <= 0 || monthly <= 0
+    || total > MAX_AMOUNT || down > MAX_AMOUNT || monthly > MAX_AMOUNT)
     return { errors, warnings, computed: null };
 
   if (down >= total) {

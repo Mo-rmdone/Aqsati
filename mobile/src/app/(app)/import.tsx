@@ -9,6 +9,7 @@ import {
   fetchExistingImports,
   findExistingCustomers,
   markDuplicates,
+  markFileDuplicates,
   markNameConflicts,
   readSpreadsheet,
   removeRowById,
@@ -45,7 +46,7 @@ const LOOKUP_FAILED = 'تعذر التأكد من العملاء الموجود�
 function pickFile(onFile: (f: File) => void) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.xlsx,.csv';
+  input.accept = '.xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   input.onchange = () => {
     const f = input.files?.[0];
     if (f) onFile(f);
@@ -253,7 +254,7 @@ export default function ImportScreen() {
     try {
       const found = await fetchExistingImports();
       existingImports.current = found;
-      setRows(markDuplicates(markNameConflicts(toImportRows(raws)), found));
+      setRows(markDuplicates(markFileDuplicates(markNameConflicts(toImportRows(raws))), found));
     } catch {
       setError(FETCH_FAILED);
     } finally {
