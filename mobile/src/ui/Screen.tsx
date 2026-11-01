@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useIsDesktop } from './layout';
 import { colors, size, space, type } from './theme';
 
 export function Screen({
@@ -10,12 +11,19 @@ export function Screen({
   children,
   scroll = true,
   onBack,
+  actions,
 }: {
   onBack?: () => void;
   title?: string;
   children: ReactNode;
   scroll?: boolean;
+  /** Desktop only: shown on the end side of the title row. */
+  actions?: ReactNode;
+  /** Accepted for call-site clarity: desktop is always content-max wide. */
+  wide?: boolean;
 }) {
+  const desktop = useIsDesktop();
+  const contentStyle = desktop ? [styles.content, styles.contentDesktop] : styles.content;
   const body = (
     <>
       {onBack || title ? (
@@ -33,20 +41,28 @@ export function Screen({
               <Text style={styles.backText}>رجوع</Text>
             </Pressable>
           ) : null}
-          {title ? <Text style={styles.title}>{title}</Text> : null}
+          {title && desktop ? (
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, styles.titleFlex]}>{title}</Text>
+              {actions}
+            </View>
+          ) : title ? (
+            <Text style={styles.title}>{title}</Text>
+          ) : null}
         </View>
       ) : null}
+      {actions && !title && desktop ? <View style={styles.titleRow}>{actions}</View> : null}
       {children}
     </>
   );
   return (
     <SafeAreaView style={styles.root}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={contentStyle} keyboardShouldPersistTaps="handled">
           {body}
         </ScrollView>
       ) : (
-        <View style={styles.content}>{body}</View>
+        <View style={contentStyle}>{body}</View>
       )}
     </SafeAreaView>
   );
@@ -63,7 +79,11 @@ const styles = StyleSheet.create({
     maxWidth: size.columnMax,
     alignSelf: 'center',
   },
+  // Desktop: wide content area next to the sidebar.
+  contentDesktop: { maxWidth: size.contentMax, padding: space[8], gap: space[6] },
   bar: { gap: space[1] },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[4] },
+  titleFlex: { flex: 1 },
   back: {
     alignSelf: 'flex-start',
     flexDirection: 'row',

@@ -9,22 +9,8 @@ import { Button } from '../../../ui/Button';
 import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
 import { StatusChip } from '../../../ui/StatusChip';
+import { Tile } from '../../../ui/Tile';
 import { colors, radius, shadow, space, type } from '../../../ui/theme';
-
-type TileTone = 'due' | 'paid' | 'overdue';
-const tileColor: Record<TileTone, string> = { due: colors.due, paid: colors.paid, overdue: colors.overdue };
-
-function Tile({ label, value, tone }: { label: string; value: number; tone: TileTone }) {
-  return (
-    <View style={styles.tile}>
-      <View style={styles.tileHead}>
-        <View style={[styles.dot, { backgroundColor: tileColor[tone] }]} />
-        <Text style={styles.tileLabel}>{label}</Text>
-      </View>
-      <Money value={value} style={{ ...type.moneyLg, color: tone === 'overdue' ? colors.overdue : colors.ink }} />
-    </View>
-  );
-}
 
 function lateText(days: number | null, due: string | null): string {
   if (days !== null && days > 0) return `متأخر ${days} يوم (من ${formatDateAr(due ?? '')})`;
@@ -104,18 +90,6 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   tiles: { gap: space[3] },
-  tile: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: space[4],
-    gap: space[1],
-    ...shadow.card,
-  },
-  tileHead: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
-  tileLabel: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
   heading: { ...type.title3, color: colors.ink, textAlign: 'right', marginTop: space[2] },
   row: {
     backgroundColor: colors.surface,

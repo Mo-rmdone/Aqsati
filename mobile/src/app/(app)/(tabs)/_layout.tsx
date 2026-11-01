@@ -1,7 +1,8 @@
 import { Tabs, useRouter } from 'expo-router';
-import { House, Plus, Settings, Users } from 'lucide-react-native';
+import { FileText, House, Plus, Settings, Users } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
+import { useIsDesktop } from '../../../ui/layout';
 import { colors, shadow, size, type } from '../../../ui/theme';
 
 // "+ فاتورة" is a tab button only: it pushes /sale/new onto the stack above the tabs,
@@ -9,6 +10,7 @@ import { colors, shadow, size, type } from '../../../ui/theme';
 // It is the one coin-colored action in the app (design system: coin = the + invoice action).
 export default function TabsLayout() {
   const router = useRouter();
+  const desktop = useIsDesktop();
   return (
     <Tabs
       screenOptions={{
@@ -17,13 +19,16 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.inkMuted,
         tabBarLabelStyle: { ...type.chip },
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.line,
-          height: 68,
-          paddingTop: 6,
-          paddingBottom: 8,
-        },
+        // Desktop navigates with the sidebar instead.
+        tabBarStyle: desktop
+          ? { display: 'none' }
+          : {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.line,
+              height: 68,
+              paddingTop: 6,
+              paddingBottom: 8,
+            },
       }}
     >
       <Tabs.Screen
@@ -50,6 +55,10 @@ export default function TabsLayout() {
             router.push('/sale/new');
           },
         }}
+      />
+      <Tabs.Screen
+        name="invoices"
+        options={{ title: 'الفواتير', tabBarIcon: ({ color }) => <FileText size={size.iconMd} color={color} /> }}
       />
       <Tabs.Screen
         name="settings"
