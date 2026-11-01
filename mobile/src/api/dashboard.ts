@@ -1,7 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
 
 import type { Tables } from '../lib/database.types';
+import { timeAr } from '../lib/date';
+import { formatEGP } from '../lib/money';
 import { supabase } from '../lib/supabase';
+
+export type ActivityRow = Omit<Tables<'v_recent_activity'>, 'tenant_id'>;
+
+export function activityText(row: ActivityRow): { title: string; sub: string } {
+  const title =
+    row.kind === 'sale' ? `فاتورة جديدة #${row.contract_no ?? ''}` : `دفعة ${formatEGP(Number(row.amount ?? 0))}`;
+  return { title, sub: `${row.customer_name ?? ''} · ${timeAr(row.at ?? '')}` };
+}
+
+export function useRecentActivity(limit = 10) {
+  return useQuery({
+    queryKey: ['dashboard', 'activity', limit],
+    queryFn: async (): Promise<ActivityRow[]> => {
+      const { data, error } = await supabase
+        .from('v_recent_activity')
+        .select('at, kind, customer_id, customer_name, contract_id, contract_no, amount')
+        .order('at', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data.map((r) => ({ ...r, amount: r.amount === null ? null : Number(r.amount) }));
+    },
+  });
+}
 
 export type WorklistRow = Omit<Tables<'v_worklist'>, 'tenant_id'>;
 

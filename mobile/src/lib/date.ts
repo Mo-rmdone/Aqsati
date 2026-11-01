@@ -23,6 +23,33 @@ export function todayISO(now: Date = new Date()): string {
   return CAIRO_DAY.format(now);
 }
 
+const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+/** "الأحد 1 نوفمبر 2026": Cairo weekday + date, Latin digits. */
+export function headerDateAr(now: Date = new Date()): string {
+  const iso = todayISO(now);
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${formatDateAr(iso)}`;
+}
+
+const CAIRO_TIME = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Cairo',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** "10:42 ص" / "3:05 م": Cairo clock time of a timestamp. Unparseable input -> "". */
+export function timeAr(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = CAIRO_TIME.formatToParts(d);
+  const h = Number(parts.find((p) => p.type === 'hour')?.value);
+  const min = parts.find((p) => p.type === 'minute')?.value ?? '00';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${min} ${h < 12 ? 'ص' : 'م'}`;
+}
+
 /** "2026-12-01" -> "1 ديسمبر 2026" (Arabic month, Latin digits). Unparseable input is returned as-is; empty -> "—". */
 export function formatDateAr(iso: string): string {
   if (!iso) return '—';

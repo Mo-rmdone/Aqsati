@@ -1,4 +1,53 @@
-import { sortWorklist, type WorklistRow } from '../dashboard';
+import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
+import { renderHook, waitFor } from '@testing-library/react-native';
+import { createElement, type ReactNode } from 'react';
+
+const mockOrder = jest.fn();
+const mockLimit = jest.fn();
+const mockChain: Record<string, unknown> = {};
+mockChain.select = () => mockChain;
+mockChain.order = (c: string, o: unknown) => (mockOrder(c, o), mockChain);
+mockChain.limit = (n: number) => (mockLimit(n), Promise.resolve({ data: [], error: null }));
+const mockFrom = jest.fn((_t: string) => mockChain);
+jest.mock('../../lib/supabase', () => ({ supabase: { from: (t: string) => mockFrom(t) } }));
+
+import { activityText, sortWorklist, useRecentActivity, type WorklistRow } from '../dashboard';
+
+beforeAll(() => notifyManager.setScheduler((cb) => cb()));
+
+describe('activityText', () => {
+  const base = { customer_id: 'u', customer_name: 'أحمد', contract_id: 'c', contract_no: 52, amount: 2000 };
+  it('formats a sale with Cairo morning time', () => {
+    // 08:42 UTC = 10:42 Cairo (UTC+2 in November)
+    expect(activityText({ ...base, kind: 'sale', at: '2026-11-01T08:42:00Z' })).toEqual({
+      title: 'فاتورة جديدة #52',
+      sub: 'أحمد · 10:42 ص',
+    });
+  });
+  it('formats a payment with Cairo afternoon time', () => {
+    expect(activityText({ ...base, kind: 'payment', at: '2026-11-01T13:05:00Z' })).toEqual({
+      title: 'دفعة 2,000.00 ج.م',
+      sub: 'أحمد · 3:05 م',
+    });
+  });
+  it('handles noon and midnight', () => {
+    expect(activityText({ ...base, kind: 'sale', at: '2026-11-01T10:00:00Z' }).sub).toBe('أحمد · 12:00 م');
+    expect(activityText({ ...base, kind: 'sale', at: '2026-10-31T22:30:00Z' }).sub).toBe('أحمد · 12:30 ص');
+  });
+});
+
+describe('useRecentActivity', () => {
+  it('orders by at desc and limits to 10', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const r = await renderHook(() => useRecentActivity(), { wrapper });
+    await waitFor(() => expect(r.result.current.isSuccess).toBe(true));
+    expect(mockFrom).toHaveBeenCalledWith('v_recent_activity');
+    expect(mockOrder).toHaveBeenCalledWith('at', { ascending: false });
+    expect(mockLimit).toHaveBeenCalledWith(10);
+  });
+});
 
 const row = (o: Partial<WorklistRow>): WorklistRow => ({
   contract_id: 'c', customer_id: 'u', name: 'n', phone: '01012345678',

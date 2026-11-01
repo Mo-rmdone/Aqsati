@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -40,8 +40,11 @@ function NextDue({ c }: { c: CustomerSummary }) {
 export default function Customers() {
   const router = useRouter();
   const desktop = useIsDesktop();
-  const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
+  const params = useLocalSearchParams<{ q?: string; pick?: string }>();
+  const picking = params.pick === 'payment';
+  const initialQ = typeof params.q === 'string' ? params.q : '';
+  const [search, setSearch] = useState(initialQ);
+  const [debounced, setDebounced] = useState(initialQ);
   const [filter, setFilter] = useState<CustomerFilter>('all');
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -50,7 +53,8 @@ export default function Customers() {
   const { data, isLoading, error, refetch } = useCustomerSummaries(debounced, filter);
   const { data: total } = useCustomerCount(filter);
   const searching = debounced.trim().length > 0 || filter !== 'all';
-  const open = (c: CustomerSummary) => router.push(`/customers/${c.customer_id}`);
+  const open = (c: CustomerSummary) =>
+    router.push(picking ? `/payment/new?customerId=${c.customer_id}` : `/customers/${c.customer_id}`);
   const importButton = <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />;
 
   const emptyNode =
@@ -64,7 +68,7 @@ export default function Customers() {
     );
 
   return (
-    <Screen title="العملاء" wide actions={importButton}>
+    <Screen title={picking ? 'اختار العميل' : 'العملاء'} wide actions={importButton}>
       {total !== undefined ? <Text style={styles.count}>{`${total} عميل`}</Text> : null}
       <View style={styles.search}>
         <Search size={size.iconSm} color={colors.inkMuted} />

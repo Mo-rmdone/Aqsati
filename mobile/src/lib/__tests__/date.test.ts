@@ -1,4 +1,16 @@
-import { formatDateAr, todayISO } from '../date';
+import { formatDateAr, headerDateAr, timeAr, todayISO } from '../date';
+
+describe('headerDateAr / timeAr', () => {
+  it('weekday + Cairo date', () => {
+    expect(headerDateAr(new Date('2026-11-01T09:00:00Z'))).toBe('الأحد 1 نوفمبر 2026');
+    expect(headerDateAr(new Date('2026-10-31T22:30:00Z'))).toBe('الأحد 1 نوفمبر 2026');
+  });
+  it('Cairo clock time', () => {
+    expect(timeAr('2026-11-01T08:42:00Z')).toBe('10:42 ص');
+    expect(timeAr('2026-11-01T13:05:00Z')).toBe('3:05 م');
+    expect(timeAr('nope')).toBe('');
+  });
+});
 
 describe('todayISO (Cairo day)', () => {
   it('rolls over at Cairo midnight (UTC+2 in winter)', () => {
