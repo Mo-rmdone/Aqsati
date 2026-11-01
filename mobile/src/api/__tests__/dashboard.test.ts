@@ -50,6 +50,33 @@ describe('useRecentActivity', () => {
     expect(mockOrder).toHaveBeenCalledWith('at', { ascending: false });
     expect(mockLimit).toHaveBeenCalledWith(10);
   });
+
+  it('only asks for events since Cairo midnight today', async () => {
+    mockGte.mockClear();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const r = await renderHook(() => useRecentActivity(10, new Date('2026-11-01T09:00:00Z')), { wrapper });
+    await waitFor(() => expect(r.result.current.isSuccess).toBe(true));
+    expect(mockGte).toHaveBeenCalledWith('at', '2026-10-31T22:00:00.000Z');
+    mockGte.mockClear();
+    const r2 = await renderHook(() => useRecentActivity(10, new Date('2026-07-15T09:00:00Z')), { wrapper });
+    await waitFor(() => expect(r2.result.current.isSuccess).toBe(true));
+    expect(mockGte).toHaveBeenCalledWith('at', '2026-07-14T21:00:00.000Z');
+  });
+});
+
+describe('cairoDayStart', () => {
+  it('is 22:00Z the day before in winter (UTC+2)', () => {
+    expect(cairoDayStart(new Date('2026-11-01T09:00:00Z'))).toBe('2026-10-31T22:00:00.000Z');
+    expect(cairoDayStart(new Date('2026-11-30T22:30:00Z'))).toBe('2026-11-30T22:00:00.000Z');
+    expect(cairoDayStart(new Date('2026-11-30T21:30:00Z'))).toBe('2026-11-29T22:00:00.000Z');
+  });
+  it('is 21:00Z the day before in summer (UTC+3)', () => {
+    expect(cairoDayStart(new Date('2026-07-15T09:00:00Z'))).toBe('2026-07-14T21:00:00.000Z');
+    expect(cairoDayStart(new Date('2026-07-31T21:30:00Z'))).toBe('2026-07-31T21:00:00.000Z');
+    expect(cairoDayStart(new Date('2026-07-31T20:30:00Z'))).toBe('2026-07-30T21:00:00.000Z');
+  });
 });
 
 const row = (o: Partial<WorklistRow>): WorklistRow => ({

@@ -13,13 +13,14 @@ export function activityText(row: ActivityRow): { title: string; sub: string } {
   return { title, sub: `${row.customer_name ?? ''} · ${timeAr(row.at ?? '')}` };
 }
 
-export function useRecentActivity(limit = 10) {
+export function useRecentActivity(limit = 10, now: Date = new Date()) {
   return useQuery({
-    queryKey: ['dashboard', 'activity', limit],
+    queryKey: ['dashboard', 'activity', limit, cairoDayStart(now)],
     queryFn: async (): Promise<ActivityRow[]> => {
       const { data, error } = await supabase
         .from('v_recent_activity')
         .select('at, kind, customer_id, customer_name, contract_id, contract_no, amount')
+        .gte('at', cairoDayStart(now))
         .order('at', { ascending: false })
         .limit(limit);
       if (error) throw error;
