@@ -38,7 +38,7 @@ async function run(q: Partial<InvoiceQuery>) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: qc }, children);
-  const r = await renderHook(() => useInvoices({ ...base, ...q }), { wrapper });
+  const r = await renderHook(() => useInvoices({ ...base, ...q }, '2026-11-15'), { wrapper });
   await waitFor(() => expect(r.result.current.isSuccess).toBe(true));
   return r.result.current.data!;
 }
@@ -58,6 +58,19 @@ test('numeric search matches contract_no exactly (Arabic digits normalised) plus
   expect(mockIlike).toHaveBeenCalledWith('external_invoice_no', '41%');
   expect(mockIlike).toHaveBeenCalledWith('product_desc', '%41%');
   expect(mockIlike).toHaveBeenCalledWith('customer_name', '%41%');
+});
+
+test('a 20-digit term skips the contract_no call but still runs the other calls', async () => {
+  await run({ search: '12345678901234567890' });
+  expect(mockEq).not.toHaveBeenCalledWith('contract_no', expect.anything());
+  expect(mockIlike).toHaveBeenCalledWith('external_invoice_no', '12345678901234567890%');
+  expect(mockIlike).toHaveBeenCalledWith('product_desc', '%12345678901234567890%');
+  expect(mockIlike).toHaveBeenCalledWith('customer_name', '%12345678901234567890%');
+});
+
+test('a zero term does not query contract_no', async () => {
+  await run({ search: '0' });
+  expect(mockEq).not.toHaveBeenCalledWith('contract_no', expect.anything());
 });
 
 test('non-numeric search only runs the text calls, with the escaped pattern', async () => {

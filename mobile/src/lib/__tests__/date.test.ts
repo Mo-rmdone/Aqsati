@@ -1,4 +1,15 @@
-import { formatDateAr } from '../date';
+import { formatDateAr, todayISO } from '../date';
+
+describe('todayISO (Cairo day)', () => {
+  it('rolls over at Cairo midnight (UTC+2 in winter)', () => {
+    expect(todayISO(new Date('2026-11-30T22:30:00Z'))).toBe('2026-12-01');
+    expect(todayISO(new Date('2026-11-30T21:30:00Z'))).toBe('2026-11-30');
+  });
+  it('uses UTC+3 in summer', () => {
+    expect(todayISO(new Date('2026-07-31T21:30:00Z'))).toBe('2026-08-01');
+    expect(todayISO(new Date('2026-07-31T20:30:00Z'))).toBe('2026-07-31');
+  });
+});
 
 describe('formatDateAr', () => {
   it('formats a normal date', () => {

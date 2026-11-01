@@ -53,7 +53,7 @@ export type InvoiceList = {
   capped: boolean;
 };
 
-export function useInvoices(q: InvoiceQuery, today: string = '') {
+export function useInvoices(q: InvoiceQuery, today: string) {
   const term = normalizeDigits(q.search.trim());
   return useQuery({
     queryKey: ['invoices', term, q.date, q.type, q.status, today],
@@ -74,7 +74,9 @@ export function useInvoices(q: InvoiceQuery, today: string = '') {
       } else {
         // Separate typed calls merged client-side (see escapeSearch), never an .or() string.
         if (/^\d+$/.test(term)) {
-          calls.push(ordered(base().eq('contract_no', Number(term))));
+          // A huge term would overflow the bigint column and reject the whole batch.
+          const no = Number(term);
+          if (Number.isSafeInteger(no) && no > 0) calls.push(ordered(base().eq('contract_no', no)));
           calls.push(ordered(base().ilike('external_invoice_no', `${escapeSearch(term)}%`)));
         }
         const safe = escapeSearch(term);

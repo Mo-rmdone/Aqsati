@@ -11,10 +11,16 @@ export function localDateISO(ts: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/** Today's local calendar date (YYYY-MM-DD) — the shop's device clock, which is Cairo time in practice. */
+const CAIRO_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Cairo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/** The Cairo calendar day (YYYY-MM-DD) of an instant, regardless of the device time zone. */
 export function todayISO(now: Date = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  return CAIRO_DAY.format(now);
 }
 
 /** "2026-12-01" -> "1 ديسمبر 2026" (Arabic month, Latin digits). Unparseable input is returned as-is; empty -> "—". */
