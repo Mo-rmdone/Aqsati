@@ -79,6 +79,82 @@ export type Database = {
           },
         ]
       }
+      contact_log: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          kind: string
+          note: string | null
+          promise_date: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          kind: string
+          note?: string | null
+          promise_date?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          promise_date?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contact_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contact_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contact_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract: {
         Row: {
           branch_id: string | null
@@ -160,6 +236,13 @@ export type Database = {
             foreignKeyName: "contract_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -219,6 +302,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "credit_invoice_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
             referencedColumns: ["customer_id"]
           },
           {
@@ -445,6 +535,13 @@ export type Database = {
             foreignKeyName: "message_log_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "message_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -593,6 +690,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "payment_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
             referencedColumns: ["customer_id"]
           },
           {
@@ -861,6 +965,13 @@ export type Database = {
             foreignKeyName: "credit_invoice_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "credit_invoice_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -914,6 +1025,13 @@ export type Database = {
             foreignKeyName: "contract_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "v_worklist"
             referencedColumns: ["customer_id"]
           },
@@ -956,6 +1074,35 @@ export type Database = {
           },
         ]
       }
+      v_followup: {
+        Row: {
+          bucket: number | null
+          contacted_today: boolean | null
+          customer_id: string | null
+          days_late: number | null
+          last_contact_at: string | null
+          last_contact_kind: string | null
+          last_note: string | null
+          name: string | null
+          next_due_amount: number | null
+          next_due_date: string | null
+          overdue_amount: number | null
+          overdue_count: number | null
+          phone: string | null
+          promise_date: string | null
+          status: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_installment_aging: {
         Row: {
           bucket: string | null
@@ -979,6 +1126,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
             referencedColumns: ["customer_id"]
           },
           {
@@ -1029,6 +1183,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "contract_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
             referencedColumns: ["customer_id"]
           },
           {
