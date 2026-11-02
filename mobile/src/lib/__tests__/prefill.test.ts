@@ -1,4 +1,4 @@
-import { parsePaymentPrefill, parseSalePrefill } from '../prefill';
+import { parsePaymentPrefill, parseSalePrefill, prefillAmounts } from '../prefill';
 
 describe('parsePaymentPrefill', () => {
   it('passes valid values', () => {
@@ -51,5 +51,16 @@ describe('parseSalePrefill', () => {
   it('drops bad type and returns {} for missing', () => {
     expect(parseSalePrefill({ type: 'barter' })).toEqual({});
     expect(parseSalePrefill({})).toEqual({});
+  });
+});
+
+describe('prefillAmounts', () => {
+  it('fills the chosen invoice line when amount and contractId are both present', () => {
+    expect(prefillAmounts({ amount: 2000, contractId: 'k1' })).toEqual({ k1: '2000' });
+  });
+  it('is undefined when either is missing', () => {
+    expect(prefillAmounts({ amount: 2000 })).toBeUndefined();
+    expect(prefillAmounts({ contractId: 'k1' })).toBeUndefined();
+    expect(prefillAmounts({})).toBeUndefined();
   });
 });

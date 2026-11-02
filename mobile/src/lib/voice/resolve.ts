@@ -31,7 +31,8 @@ export interface VoiceData {
   findCustomers(q: string): Promise<CustomerOption[]>;
   customerSummary(id: string): Promise<CustomerSummary | null>;
   lastPayment(id: string): Promise<{ amount: number; received_at: string } | null>;
-  openInvoices(customerId: string): Promise<InvoiceOption[]>;
+  /** 'payable': installment contracts with remaining > 0 (payment form). 'all': every non-settled invoice. */
+  openInvoices(customerId: string, scope?: 'payable' | 'all'): Promise<InvoiceOption[]>;
   lateSummary(): Promise<{ count: number; total: number; top: { name: string; days_late: number }[] }>;
   totals(): Promise<{ today: number; month: number }>;
 }
@@ -145,7 +146,12 @@ type CustomerStep = { done: VoiceOutcome; notFound?: boolean } | { id: string; n
 async function stepCustomer(intent: Intent, name: string, data: VoiceData, picked?: Picked): Promise<CustomerStep> {
   if (picked?.customerId) return { id: picked.customerId, name: null };
   const found = narrowByName(await data.findCustomers(name), name);
-  if (found.length === 0) return { done: { kind: 'message', text: `مش لاقي عميل اسمه ${name}` }, notFound: true };
+  if (found.length === 0) {
+    return {
+      done: { kind: 'navigate', path: `/customers?q=${encodeURIComponent(name)}`, say: `مش لاقي عميل اسمه ${name}، دوّر عليه هنا` },
+      notFound: true,
+    };
+  }
   if (found.length > 1) return { done: { kind: 'chooseCustomer', options: found, then: intent } };
   return { id: found[0].id, name: found[0].name };
 }
@@ -178,7 +184,7 @@ export async function resolveIntent(intent: Intent, data: VoiceData, picked?: Pi
     case 'record_payment': {
       const c = await stepCustomer(intent, intent.customer, data, picked);
       if ('done' in c) return c.done;
-      const invoices = await data.openInvoices(c.id);
+      const invoices = await data.openInvoices(c.id, 'payable');
       if (invoices.length === 0) return { kind: 'message', text: `${await nameOf(c, data)} مالوش فواتير مفتوحة` };
       const r = await stepInvoice(intent, c.id, invoices, intent.invoice_hint, picked);
       if ('done' in r) return r.done;
@@ -259,6 +265,6 @@ export async function resolveIntent(intent: Intent, data: VoiceData, picked?: Pi
       return { kind: 'navigate', path: '/' };
     }
     default:
-      return { kind: 'message', text: 'مفهمتش، قول تاني' };
+      return { kind: 'message', text: 'مفهمتش، جرّب تقولها تاني. مثلاً: «سيد عليه كام؟» أو «سيد دفع ألفين كاش» أو «مين متأخر؟»' };
   }
 }

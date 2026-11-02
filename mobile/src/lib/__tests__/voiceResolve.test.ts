@@ -139,9 +139,22 @@ describe('resolveIntent', () => {
   });
   it('zero customers -> message', async () => {
     expect(await resolveIntent(pay, fake({ findCustomers: async () => [] }))).toEqual({
-      kind: 'message',
-      text: 'مش لاقي عميل اسمه سيد',
+      kind: 'navigate',
+      path: '/customers?q=%D8%B3%D9%8A%D8%AF',
+      say: 'مش لاقي عميل اسمه سيد، دوّر عليه هنا',
     });
+  });
+  it('unknown intent -> hint message', async () => {
+    const out: any = await resolveIntent({ type: 'unknown' } as any, fake());
+    expect(out.kind).toBe('message');
+    expect(out.text).toBe('مفهمتش، جرّب تقولها تاني. مثلاً: «سيد عليه كام؟» أو «سيد دفع ألفين كاش» أو «مين متأخر؟»');
+  });
+  it('payment asks for payable invoices only; ask_invoice sees all', async () => {
+    const scopes: unknown[] = [];
+    const d = fake({ openInvoices: async (_id: string, scope?: string) => (scopes.push(scope), [inv('k1', 'تلاجة')]) });
+    await resolveIntent(pay, d);
+    await resolveIntent({ type: 'ask_invoice', customer: 'سيد' } as Intent, d);
+    expect(scopes).toEqual(['payable', undefined]);
   });
   it('two customers -> chooseCustomer; picked continues', async () => {
     const d = fake({ findCustomers: async () => [sayed, sayed2] });

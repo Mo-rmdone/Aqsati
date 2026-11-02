@@ -182,7 +182,7 @@ Mic button on Home (`ui/VoicePanel.tsx`). The owner speaks Egyptian Arabic; the 
 
 **Files:** `lib/speech.ts`, `api/voice.ts`, `lib/voice/{resolve,normalize}.ts`, `lib/prefill.ts` (+ payment/sale form prefills), `ui/VoicePanel.tsx`, `supabase/functions/voice-intent/{index,logic}.ts`.
 
-**Devices:** needs the Web Speech API: Chrome (Android or computer) and Edge. Safari/iOS and Firefox show "الميكروفون مش مدعوم في المتصفح ده — جرّب Chrome". Chrome sends the audio to Google's recognition service, so it needs internet.
+**Devices:** needs the Web Speech API: «مضمون على Chrome (أندرويد والكمبيوتر). على الآيفون ممكن يشتغل في Safari بس مش مجرّب». Firefox (and any browser without the API) shows "الميكروفون مش مدعوم في المتصفح ده — جرّب Chrome". Chrome sends the audio to Google's recognition service, so it needs internet.
 
 ---
 

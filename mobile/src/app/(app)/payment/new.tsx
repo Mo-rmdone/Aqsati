@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { useCustomerContracts } from '../../../api/contracts';
 import { openInstallmentContracts, useRecordPayment } from '../../../api/payments';
 import { useAttempt } from '../../../lib/attempt';
-import { parsePaymentPrefill } from '../../../lib/prefill';
+import { parsePaymentPrefill, prefillAmounts } from '../../../lib/prefill';
 import { PaymentForm } from '../../../ui/PaymentForm';
 import { Screen } from '../../../ui/Screen';
 import { colors, font } from '../../../ui/theme';
@@ -41,6 +41,7 @@ export default function NewPayment() {
             title: `${c.product_desc ?? ''} (عقد ${c.contract_no})`,
             remaining: Number(c.remaining),
           }))}
+          initialAmounts={prefillAmounts(prefill)}
           initialTotal={prefill.amount !== undefined ? String(prefill.amount) : undefined}
           initialMethod={prefill.method}
           submitLabel="حفظ الدفعة"

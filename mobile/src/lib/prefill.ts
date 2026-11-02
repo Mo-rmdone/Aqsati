@@ -47,3 +47,8 @@ export function parseSalePrefill(params: Params): Partial<SaleForm> & { newName?
   if (newName && newName.length <= 80) out.newName = newName;
   return out;
 }
+
+/** Seeds the chosen invoice line when a voice prefill carries both amount and contractId. */
+export function prefillAmounts(p: { amount?: number; contractId?: string }): Record<string, string> | undefined {
+  return p.amount !== undefined && p.contractId ? { [p.contractId]: String(p.amount) } : undefined;
+}

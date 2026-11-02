@@ -115,16 +115,19 @@ const voiceData: VoiceData = {
     if (error) throw error;
     return data ? { amount: data.amount, received_at: data.received_at } : null;
   },
-  async openInvoices(customerId) {
+  // scope 'payable' (payment intents) = installment contracts with remaining > 0, as the payment form shows.
+  // scope 'all' (ask_invoice / open) = every non-settled invoice.
+  async openInvoices(customerId, scope = 'all') {
     const { data, error } = await supabase
       .from('v_invoice_list')
-      .select('contract_id, contract_no, product_desc, external_invoice_no, remaining, status')
+      .select('contract_id, contract_no, product_desc, external_invoice_no, remaining, status, sale_type')
       .eq('customer_id', customerId)
       .neq('status', 'settled')
       .order('sale_date', { ascending: false });
     if (error) throw error;
     return (data ?? [])
       .filter((r) => r.contract_id)
+      .filter((r) => scope === 'all' || (r.sale_type === 'installment' && num(r.remaining) > 0))
       .map((r) => ({
         id: r.contract_id as string,
         contract_no: r.contract_no,
@@ -144,7 +147,7 @@ const voiceData: VoiceData = {
     return {
       count: rows.length,
       total: rows.reduce((s, r) => s + num(r.overdue_amount), 0),
-      top: rows.slice(0, 3).map((r) => ({ name: r.name ?? '', days_late: num(r.days_late) })),
+      top: rows.slice(0, 5).map((r) => ({ name: r.name ?? '', days_late: num(r.days_late) })),
     };
   },
   async totals() {
