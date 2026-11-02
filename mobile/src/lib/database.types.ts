@@ -919,6 +919,41 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_usage: {
+        Row: {
+          calls: number
+          cost_usd: number
+          input_tokens: number
+          month: string
+          output_tokens: number
+          tenant_id: string
+        }
+        Insert: {
+          calls?: number
+          cost_usd?: number
+          input_tokens?: number
+          month: string
+          output_tokens?: number
+          tenant_id: string
+        }
+        Update: {
+          calls?: number
+          cost_usd?: number
+          input_tokens?: number
+          month?: string
+          output_tokens?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_usage_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_aging: {
@@ -1311,6 +1346,11 @@ export type Database = {
         Args: { p_id: string; p_lines: Json; p_method: string }
         Returns: string
       }
+      voice_record: {
+        Args: { p_cost: number; p_input: number; p_output: number }
+        Returns: undefined
+      }
+      voice_reserve: { Args: { p_cap_usd: number }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
