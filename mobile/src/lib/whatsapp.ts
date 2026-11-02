@@ -1,6 +1,8 @@
 // The MVP's reminder mechanism is a `wa.me` click-to-send link, not the paid
 // WhatsApp Cloud API. Ported from web/src/lib/whatsapp.ts; message copy and the
 // Egypt phone-normalization rule are product decisions, kept as-is.
+import type { Tables } from './database.types';
+import { formatDateAr } from './date';
 import { formatEGP } from './money';
 
 /** Egypt mobile only (01[0125]xxxxxxxx): returns a wa.me link, or null for anything else. */
@@ -21,5 +23,20 @@ export function reminderMessage(p: {
     `تذكير بقسط بمبلغ ${formatEGP(p.amount)} ` +
     `مستحق بتاريخ ${p.dueDate}.\n` +
     `برجاء السداد في أقرب وقت. شكراً لتعاملك معنا — ${p.merchant}`
+  );
+}
+
+/** Per-customer follow-up reminder: the overdue total when anything is overdue, else the next installment. */
+export function followupReminder(row: Tables<'v_followup'>, merchant: string): string {
+  const name = row.name ?? '';
+  const tail = `برجاء السداد في أقرب وقت. شكراً لتعاملك معنا — ${merchant}`;
+  if ((row.overdue_count ?? 0) > 0) {
+    return `أهلاً ${name} 👋\n` + `متأخر عليك ${formatEGP(row.overdue_amount ?? 0)} من أقساطك.\n` + tail;
+  }
+  return (
+    `أهلاً ${name} 👋\n` +
+    `تذكير بقسط بمبلغ ${formatEGP(row.next_due_amount ?? 0)} ` +
+    `مستحق بتاريخ ${formatDateAr(row.next_due_date ?? '')}.\n` +
+    tail
   );
 }

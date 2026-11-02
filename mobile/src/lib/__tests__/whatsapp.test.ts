@@ -1,4 +1,23 @@
-import { reminderMessage, whatsappLink } from '../whatsapp';
+import { followupReminder, reminderMessage, whatsappLink } from '../whatsapp';
+
+const fbase = {
+  name: 'أحمد', overdue_amount: 0, overdue_count: 0, next_due_amount: 300, next_due_date: '2026-12-01',
+} as Parameters<typeof followupReminder>[0];
+
+test('followupReminder overdue wording uses the overdue total', () => {
+  const m = followupReminder({ ...fbase, overdue_amount: 1250, overdue_count: 2 }, 'متجر النور');
+  expect(m).toContain('أحمد');
+  expect(m).toContain('متأخر عليك 1,250.00 ج.م');
+  expect(m).toContain('متجر النور');
+  expect(m).not.toContain('300.00');
+});
+
+test('followupReminder next-due wording', () => {
+  const m = followupReminder(fbase, 'متجر النور');
+  expect(m).toContain('300.00 ج.م');
+  expect(m).toContain('1 ديسمبر 2026');
+  expect(m).not.toContain('متأخر عليك');
+});
 
 test('whatsappLink normalizes Egyptian mobile numbers', () => {
   expect(whatsappLink('01012345678', 'x')).toBe('https://wa.me/201012345678?text=x');
