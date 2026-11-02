@@ -117,7 +117,7 @@ insert into tap(l) select is((select created_by from public.contact_log where no
 insert into tap(l) select is(current_setting('t.upd') || ':' || current_setting('t.del'), '42501:42501', 'update and delete privileges revoked from authenticated');
 insert into tap(l) select is((select contacted_today from public.v_followup where name = 'H-mid'), true, 'call at Cairo-today 00:30: contacted_today');
 insert into tap(l) select is((select bucket from public.v_followup where name = 'H-mid'), 2, 'call at Cairo-today 00:30: bucket 2');
-insert into tap(l) select is((select promise_date from public.v_followup where name = 'H-prom'), current_setting('t.today')::date + 4, 'past promise ignored, later future promise wins');
+insert into tap(l) select is((select promise_date from public.v_followup where name = 'H-prom'), null::date, 'newest promise is past: promise_date null (superseded in 0025)');
 insert into tap(l) select is((select count(*)::int from public.v_followup where name = 'H-two'), 1, 'two contacts, two contracts: still one row');
 insert into tap(l) select is((select overdue_count from public.v_followup where name = 'H-two'), 2, 'two contracts: overdue_count 2');
 insert into tap(l) select is((select last_note from public.v_followup where name = 'H-tie'), 'high', 'identical created_at: higher id wins');

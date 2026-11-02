@@ -1077,6 +1077,7 @@ export type Database = {
       v_followup: {
         Row: {
           bucket: number | null
+          called_today: boolean | null
           contacted_today: boolean | null
           customer_id: string | null
           days_late: number | null
@@ -1092,6 +1093,7 @@ export type Database = {
           promise_date: string | null
           status: string | null
           tenant_id: string | null
+          whatsapp_today: boolean | null
         }
         Relationships: [
           {
