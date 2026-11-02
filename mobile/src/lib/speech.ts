@@ -2,10 +2,13 @@ export type SpeechErrorCode = 'unsupported' | 'no_mic' | 'permission' | 'no_spee
 
 export class SpeechError extends Error {
   code: SpeechErrorCode;
-  constructor(code: SpeechErrorCode) {
+  /** The browser's raw error (e.g. 'network', 'bad-grammar', 'InvalidStateError'), shown to help diagnose. */
+  detail?: string;
+  constructor(code: SpeechErrorCode, detail?: string) {
     super(code);
     this.name = 'SpeechError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -18,8 +21,9 @@ const TEXT: Record<SpeechErrorCode, string> = {
   cancelled: '',
 };
 
-export function speechErrorText(code: SpeechErrorCode): string {
-  return TEXT[code];
+export function speechErrorText(code: SpeechErrorCode, detail?: string): string {
+  // For the catch-all "network" bucket, show the browser's own error code so a failure can be diagnosed.
+  return code === 'network' && detail ? `${TEXT[code]} (${detail})` : TEXT[code];
 }
 
 interface RecognitionLike {
@@ -77,7 +81,7 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
       }
       fn();
     };
-    const fail = (code: SpeechErrorCode) => finish(() => reject(new SpeechError(code)));
+    const fail = (code: SpeechErrorCode, detail?: string) => finish(() => reject(new SpeechError(code, detail)));
     cancel = () => fail('cancelled');
     activeCancel = cancel;
 
@@ -98,7 +102,7 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
         else if (err === 'not-allowed' || err === 'service-not-allowed') fail('permission');
         else if (err === 'no-speech') fail('no_speech');
         else if (err === 'aborted') fail('cancelled');
-        else fail('network');
+        else fail('network', String(err ?? 'unknown'));
       };
       rec.onend = () => fail('no_speech');
       // The mic permission prompt may be slow: the real timeout starts at onstart;
@@ -115,8 +119,8 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
         timer = setTimeout(() => fail('no_speech'), Math.max(0, Math.min(timeoutMs, deadline - Date.now())));
       };
       rec.start();
-    } catch {
-      fail('network');
+    } catch (e) {
+      fail('network', (e as Error)?.name || 'start-failed');
     }
   });
   // Callers may drop the promise after cancel(); avoid unhandled rejections.

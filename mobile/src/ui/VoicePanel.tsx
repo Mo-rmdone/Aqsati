@@ -137,7 +137,7 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
       (e: any) => {
         if (run.current !== id) return;
         cancelListen.current = null;
-        const msg = typeof e?.code === 'string' ? speechErrorText(e.code) : GENERIC_ERROR;
+        const msg = typeof e?.code === 'string' ? speechErrorText(e.code, e.detail) : GENERIC_ERROR;
         setPhase(msg ? { name: 'message', text: msg } : { name: 'idle' });
       },
     );
