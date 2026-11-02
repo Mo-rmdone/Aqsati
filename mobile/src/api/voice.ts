@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { Intent } from '../../../supabase/functions/voice-intent/logic';
 import { cairoDayStart } from '../lib/date';
 import { supabase } from '../lib/supabase';
+import { fuzzyNamePattern } from '../lib/voice/normalize';
 import type { CustomerOption, VoiceData } from '../lib/voice/resolve';
 import { escapeSearch } from './customers';
 import { normalizeDigits } from './sales';
@@ -69,7 +70,7 @@ async function findCustomers(q: string): Promise<CustomerOption[]> {
   if (!term) return [];
   const safe = escapeSearch(term);
   const [byName, byPhone] = await Promise.all([
-    supabase.from('customer').select('id, name, phone').ilike('name', `%${safe}%`).order('created_at', { ascending: false }).limit(6),
+    supabase.from('customer').select('id, name, phone').ilike('name', fuzzyNamePattern(safe)).order('created_at', { ascending: false }).limit(6),
     supabase.from('customer').select('id, name, phone').ilike('phone', `${safe}%`).order('created_at', { ascending: false }).limit(6),
   ]);
   if (byName.error) throw byName.error;
@@ -92,8 +93,9 @@ const voiceData: VoiceData = {
   async customerSummary(id) {
     const { data, error } = await supabase.from('v_customer_summary').select('*').eq('customer_id', id).maybeSingle();
     if (error) throw error;
+    if (!data) return null;
     return {
-      name: data?.name ?? '',
+      name: data.name ?? '',
       paid_total: num(data?.paid_total),
       remaining_total: num(data?.remaining_total),
       overdue_amount: num(data?.overdue_amount),

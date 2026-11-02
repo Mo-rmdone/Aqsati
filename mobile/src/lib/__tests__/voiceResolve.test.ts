@@ -1,5 +1,5 @@
 import type { Intent } from '../../../../supabase/functions/voice-intent/logic';
-import { normalizeAr } from '../voice/normalize';
+import { fuzzyNamePattern, normalizeAr } from '../voice/normalize';
 import {
   balanceText,
   invoiceText,
@@ -49,6 +49,32 @@ describe('normalizeAr', () => {
     expect(normalizeAr('مـحمد')).toBe('محمد');
     expect(normalizeAr('موسى')).toBe(normalizeAr('موسي'));
     expect(normalizeAr('ABC')).toBe('abc');
+  });
+});
+
+describe('fix round 1', () => {
+  it('fuzzyNamePattern matches spelling variants', () => {
+    const pattern = fuzzyNamePattern('احمد فاطمه');
+    expect(pattern).toBe('%_حمد ف_طم_%');
+    const re = new RegExp('^' + pattern.slice(1, -1).replace(/_/g, '.') + '$');
+    expect(re.test('أحمد فاطمة')).toBe(true);
+  });
+  it('leading ال stripped only when 3+ chars remain', () => {
+    expect(normalizeAr('الله')).toBe('الله');
+    expect(normalizeAr('الشحات')).toBe('شحات');
+  });
+  it('single invoice + hint that matches nothing -> chooseInvoice', async () => {
+    const pay: Intent = { type: 'record_payment', customer: 'سيد', invoice_hint: 'غسالة' };
+    const out = await resolveIntent(pay, fake());
+    expect(out.kind).toBe('chooseInvoice');
+  });
+  it('single invoice + matching hint -> navigate', async () => {
+    const pay: Intent = { type: 'record_payment', customer: 'سيد', invoice_hint: 'تلاجه' };
+    expect((await resolveIntent(pay, fake())).kind).toBe('navigate');
+  });
+  it('missing customer summary -> message', async () => {
+    const out = await resolveIntent({ type: 'ask_balance', customer: 'سيد' }, fake({ customerSummary: async () => null }));
+    expect(out).toEqual({ kind: 'message', text: 'مش لاقي بيانات العميل ده' });
   });
 });
 

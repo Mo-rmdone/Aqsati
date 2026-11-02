@@ -29,7 +29,7 @@ export interface CustomerSummary {
 
 export interface VoiceData {
   findCustomers(q: string): Promise<CustomerOption[]>;
-  customerSummary(id: string): Promise<CustomerSummary>;
+  customerSummary(id: string): Promise<CustomerSummary | null>;
   lastPayment(id: string): Promise<{ amount: number; received_at: string } | null>;
   openInvoices(customerId: string): Promise<InvoiceOption[]>;
   lateSummary(): Promise<{ count: number; total: number; top: { name: string; days_late: number }[] }>;
@@ -151,7 +151,7 @@ async function stepCustomer(intent: Intent, name: string, data: VoiceData, picke
 }
 
 async function nameOf(step: { id: string; name: string | null }, data: VoiceData): Promise<string> {
-  return step.name ?? (await data.customerSummary(step.id)).name;
+  return step.name ?? (await data.customerSummary(step.id))?.name ?? 'العميل ده';
 }
 
 async function stepInvoice(
@@ -168,7 +168,7 @@ async function stepInvoice(
   }
   const hits = matchInvoices(invoices, hint);
   if (hits.length === 1) return { invoice: hits[0] };
-  if (invoices.length === 1) return { invoice: invoices[0] };
+  if (invoices.length === 1 && !hint?.trim()) return { invoice: invoices[0] };
   const options = hits.length > 1 ? hits : invoices;
   return { done: { kind: 'chooseInvoice', options, customerId, then: intent } };
 }
@@ -213,6 +213,7 @@ export async function resolveIntent(intent: Intent, data: VoiceData, picked?: Pi
       const c = await stepCustomer(intent, intent.customer, data, picked);
       if ('done' in c) return c.done;
       const [s, last] = await Promise.all([data.customerSummary(c.id), data.lastPayment(c.id)]);
+      if (!s) return { kind: 'message', text: 'مش لاقي بيانات العميل ده' };
       return { kind: 'answer', text: balanceText(s, last) };
     }
     case 'ask_late':

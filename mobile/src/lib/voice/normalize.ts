@@ -12,8 +12,16 @@ export function normalizeAr(s: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
-    .map((w) => (w.length > 3 && w.startsWith('ال') ? w.slice(2) : w))
+    .map((w) => (w.length >= 5 && w.startsWith('ال') ? w.slice(2) : w))
     .join(' ');
+}
+
+/**
+ * Turns an already-escaped search term into an ilike pattern that tolerates the
+ * spelling variants normalizeAr unifies: alef forms, ة/ه, ى/ي each become `_`.
+ */
+export function fuzzyNamePattern(escaped: string): string {
+  return `%${escaped.replace(/[اأإآةهىي]/g, '_')}%`;
 }
 
 /** True when the normalized haystack contains the normalized needle (empty needle -> false). */
