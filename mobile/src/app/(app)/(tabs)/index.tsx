@@ -9,7 +9,7 @@ import {
   StickyNote,
   type LucideIcon,
 } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { activityText, useCollectionsKpi, useRecentActivity, type ActivityRow } from '../../../api/dashboard';
@@ -147,17 +147,22 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
   const log = useLogContact();
   // One pending id per (customer, kind); reused until that mutation succeeds so a retry/double press is idempotent.
   const pending = useRef(new Map<string, string>());
+  // Optimistic "called" marks; cleared whenever fresh server data arrives (the server is the source of truth).
   const [called, setCalled] = useState<Set<string>>(new Set());
+  useEffect(() => setCalled(new Set()), [rows]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [noteFor, setNoteFor] = useState<FollowupRow | null>(null);
+  // One id per note-sheet session: retries of the same sheet reuse it, a new sheet gets a new one.
+  const noteId = useRef('');
 
   const send = async (
     customerId: string,
     kind: ContactKind,
     extra?: { note?: string; promiseDate?: string },
+    fixedId?: string,
   ): Promise<boolean> => {
     const key = `${customerId}:${kind}`;
-    let id = pending.current.get(key);
+    let id = fixedId ?? pending.current.get(key);
     if (!id) {
       id = newId();
       pending.current.set(key, id);
@@ -184,10 +189,10 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
   const linkOf = (r: FollowupRow): string | null =>
     r.phone ? whatsappLink(r.phone, followupReminder(r, shopName)) : null;
 
-  const doWhatsapp = async (r: FollowupRow, link: string) => {
-    // Log first, but never block the chat on a logging failure.
-    await send(r.customer_id ?? '', 'whatsapp');
+  const doWhatsapp = (r: FollowupRow, link: string) => {
+    // Open synchronously on the press (popup blockers reject window.open after an await), log in parallel.
     void Linking.openURL(link);
+    void send(r.customer_id ?? '', 'whatsapp');
   };
 
   const actionsFor = (r: FollowupRow, compact: boolean) => {
@@ -198,8 +203,11 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
         compact={compact}
         called={isCalled(r)}
         onCall={() => void doCall(r)}
-        onWhatsapp={link ? () => void doWhatsapp(r, link) : null}
-        onNote={() => setNoteFor(r)}
+        onWhatsapp={link ? () => doWhatsapp(r, link) : null}
+        onNote={() => {
+          noteId.current = newId();
+          setNoteFor(r);
+        }}
         onPay={() => router.push(payPath(r))}
       />
     );
@@ -211,10 +219,12 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
       customerName={noteFor?.name ?? ''}
       today={todayISO()}
       onClose={() => setNoteFor(null)}
-      onSave={({ note, promiseDate }) => {
+      onSave={async ({ note, promiseDate }) => {
         const target = noteFor;
-        setNoteFor(null);
-        if (target?.customer_id) void send(target.customer_id, 'note', { note, promiseDate });
+        if (!target?.customer_id) return false;
+        const ok = await send(target.customer_id, 'note', { note, promiseDate }, noteId.current);
+        if (ok) setNoteFor(null);
+        return ok;
       }}
     />
   );
@@ -234,8 +244,8 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
               key: 'customer',
               title: 'العميل',
               render: (r) => (
-                <View style={r.bucket === 2 && styles.dim}>
-                  <Text style={styles.cellName}>{r.name ?? ''}</Text>
+                <View>
+                  <Text style={[styles.cellName, r.bucket === 2 && styles.dimText]}>{r.name ?? ''}</Text>
                   <Text style={styles.phone}>{r.phone ?? ''}</Text>
                 </View>
               ),
@@ -292,7 +302,7 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
         return (
           <View
             key={r.customer_id}
-            style={[styles.row, isOverdue(r) && styles.rowLate, dim && styles.dim]}
+            style={[styles.row, isOverdue(r) && styles.rowLate]}
           >
             <View style={styles.rowTop}>
               <Text style={[styles.name, dim && styles.dimText]}>{r.name ?? ''}</Text>
@@ -494,7 +504,6 @@ const styles = StyleSheet.create({
   rowLate: { borderStartWidth: 4, borderStartColor: colors.overdue },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
   name: { ...type.title3, color: colors.ink, flexShrink: 1 },
-  dim: { opacity: 0.6 },
   dimText: { color: colors.inkMuted },
   contactLine: { ...type.body, color: colors.paid, textAlign: 'right' },
   followCell: { gap: space[2] },

@@ -57,6 +57,17 @@ test('save is disabled with no note and no promise', async () => {
   expect(onSave).not.toHaveBeenCalled();
 });
 
+test('a failed save keeps the sheet open with the error and the typed text', async () => {
+  const onSave = jest.fn().mockResolvedValue(false);
+  const onClose = jest.fn();
+  await render(<ContactSheet visible customerName="أحمد" onClose={onClose} onSave={onSave} today={TODAY} />);
+  await fireEvent.changeText(screen.getByLabelText('الملاحظة'), 'هيدفع');
+  await fireEvent.press(screen.getByRole('button', { name: 'حفظ' }));
+  expect(await screen.findByText('ماتحفظتش، جرّب تاني')).toBeTruthy();
+  expect(screen.getByLabelText('الملاحظة').props.value).toBe('هيدفع');
+  expect(onClose).not.toHaveBeenCalled();
+});
+
 test('رجوع closes', async () => {
   const { ui, onClose } = setup();
   await render(ui);

@@ -20,10 +20,26 @@ export function ContactSheet({
   visible: boolean;
   customerName: string;
   onClose: () => void;
-  onSave: (v: { note: string; promiseDate?: string }) => void;
+  /** Return false (or reject) to keep the sheet open with an error; the parent closes it on success. */
+  onSave: (v: { note: string; promiseDate?: string }) => Promise<boolean | void> | boolean | void;
   today: string;
 }) {
   const desktop = useIsDesktop();
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    setFailed(false);
+    let ok = true;
+    try {
+      ok = (await onSave({ note: note.trim(), promiseDate: promiseDate ?? undefined })) !== false;
+    } catch {
+      ok = false;
+    }
+    setSaving(false);
+    if (!ok) setFailed(true);
+  };
   const [note, setNote] = useState('');
   const [chosen, setChosen] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
@@ -33,6 +49,8 @@ export function ContactSheet({
       setNote('');
       setChosen(null);
       setTyped('');
+      setSaving(false);
+      setFailed(false);
     }
   }, [visible]);
 
@@ -92,12 +110,13 @@ export function ContactSheet({
               autoCorrect={false}
             />
             {promiseDate ? <Text style={styles.picked}>{`وعد يدفع ${formatDateAr(promiseDate)}`}</Text> : null}
+            {failed ? <Text style={styles.failed}>ماتحفظتش، جرّب تاني</Text> : null}
             <View style={styles.buttons}>
               <View style={styles.flex}>
                 <Button
-                  title="حفظ"
-                  disabled={!canSave}
-                  onPress={() => onSave({ note: note.trim(), promiseDate: promiseDate ?? undefined })}
+                  title={saving ? 'بيتحفظ…' : 'حفظ'}
+                  disabled={!canSave || saving}
+                  onPress={() => void save()}
                 />
               </View>
               <View style={styles.flex}>
@@ -115,8 +134,8 @@ const styles = StyleSheet.create({
   overlay: { flex: 1 },
   overlayDesktop: { alignItems: 'center', justifyContent: 'center' },
   overlayPhone: { justifyContent: 'flex-end' },
-  // Dimmed scrim from the ink token (no hand-written colors).
-  backdrop: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.ink, opacity: 0.45 },
+  backdrop: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim },
+  failed: { ...type.body, color: colors.error, textAlign: 'right' },
   card: { backgroundColor: colors.surface, padding: space[5] },
   cardDesktop: { width: '100%', maxWidth: size.columnMax, borderRadius: radius.xl, maxHeight: '90%' },
   cardPhone: { width: '100%', borderTopStartRadius: radius.xl, borderTopEndRadius: radius.xl, maxHeight: '90%' },

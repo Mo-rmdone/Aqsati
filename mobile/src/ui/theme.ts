@@ -32,6 +32,7 @@ const light = {
   errorBg: '#FBE3E1',
   onError: '#FFFFFF',
   focus: '#0B5D4B',
+  scrim: 'rgba(14, 21, 18, 0.55)',
 } as const;
 
 export const colorsDark = {
@@ -63,6 +64,7 @@ export const colorsDark = {
   errorBg: '#4A201D',
   onError: '#3A0B08',
   focus: '#5CCBA8',
+  scrim: 'rgba(0, 0, 0, 0.6)',
 } as const;
 
 // Light theme is the only one wired up for now; colorsDark is ready for a theme switch.
