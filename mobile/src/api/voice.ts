@@ -14,10 +14,13 @@ export type VoiceErrorCode = 'budget_exceeded' | 'not_configured' | 'too_long' |
 
 export class VoiceError extends Error {
   code: VoiceErrorCode;
-  constructor(code: VoiceErrorCode) {
+  /** For not_configured: names of the missing server settings (never values). */
+  detail?: string;
+  constructor(code: VoiceErrorCode, detail?: string) {
     super(code);
     this.name = 'VoiceError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -29,8 +32,8 @@ const TEXT: Record<VoiceErrorCode, string> = {
   unauthorized: 'سجّل دخول تاني وجرّب',
 };
 
-export function voiceErrorText(code: VoiceErrorCode): string {
-  return TEXT[code];
+export function voiceErrorText(code: VoiceErrorCode, detail?: string): string {
+  return detail ? `${TEXT[code]} (${detail})` : TEXT[code];
 }
 
 async function mapError(error: any): Promise<VoiceError> {
@@ -44,7 +47,11 @@ async function mapError(error: any): Promise<VoiceError> {
       /* non-JSON body */
     }
     const code = body && typeof body === 'object' ? body.error : undefined;
-    if (code === 'budget_exceeded' || code === 'not_configured' || code === 'too_long') return new VoiceError(code);
+    if (code === 'not_configured') {
+      const missing = Array.isArray(body.missing) ? body.missing.filter((m: unknown) => typeof m === 'string') : [];
+      return new VoiceError(code, missing.length ? `ناقص: ${missing.join('، ')}` : undefined);
+    }
+    if (code === 'budget_exceeded' || code === 'too_long') return new VoiceError(code);
   }
   return new VoiceError('unavailable');
 }

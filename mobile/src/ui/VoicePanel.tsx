@@ -163,7 +163,7 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
       handleOutcome(outcome);
     } catch (e) {
       if (run.current !== id) return;
-      setPhase({ name: 'message', text: e instanceof VoiceError ? voiceErrorText(e.code) : GENERIC_ERROR });
+      setPhase({ name: 'message', text: e instanceof VoiceError ? voiceErrorText(e.code, e.detail) : GENERIC_ERROR });
     }
   };
 

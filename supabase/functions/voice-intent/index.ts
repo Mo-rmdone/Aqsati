@@ -45,7 +45,11 @@ Deno.serve(async (req: Request) => {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   const url = Deno.env.get('SUPABASE_URL');
   const anon = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!apiKey || !url || !anon) return json({ error: 'not_configured' }, 503);
+  if (!apiKey || !url || !anon) {
+    // Names only (never values), so the owner can tell which setting is missing.
+    const missing = [!apiKey && 'ANTHROPIC_API_KEY', !url && 'SUPABASE_URL', !anon && 'SUPABASE_ANON_KEY'].filter(Boolean);
+    return json({ error: 'not_configured', missing }, 503);
+  }
 
   const supabase = createClient(url, anon, {
     global: { headers: { Authorization: auth } },
