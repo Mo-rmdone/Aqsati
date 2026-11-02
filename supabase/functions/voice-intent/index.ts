@@ -57,7 +57,10 @@ Deno.serve(async (req: Request) => {
     p_cap_usd: CAP_USD,
     p_charge_usd: reserveChargeUsd(),
   });
-  if (reserveErr) return json({ error: 'unauthorized' }, 401);
+  if (reserveErr) {
+    if (reserveErr.code === '42501') return json({ error: 'unauthorized' }, 401);
+    return json({ error: 'ai_unavailable' }, 503);
+  }
   if (ok !== true) return json({ error: 'budget_exceeded' }, 402);
 
   let res: Response;
@@ -70,6 +73,7 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify(buildRequest(text, cairoToday())),
+      signal: AbortSignal.timeout(15000),
     });
   } catch {
     return json({ error: 'ai_unavailable' }, 503);
