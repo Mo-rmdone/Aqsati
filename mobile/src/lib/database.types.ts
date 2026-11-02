@@ -1347,10 +1347,13 @@ export type Database = {
         Returns: string
       }
       voice_record: {
-        Args: { p_cost: number; p_input: number; p_output: number }
+        Args: { p_input: number; p_output: number }
         Returns: undefined
       }
-      voice_reserve: { Args: { p_cap_usd: number }; Returns: boolean }
+      voice_reserve: {
+        Args: { p_cap_usd: number; p_charge_usd: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

@@ -51,6 +51,10 @@
   "private": true,
   "jest": {
     "preset": "jest-expo",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/../supabase/functions"
+    ],
     "setupFiles": [
       "./jest.setup.js"
     ],
