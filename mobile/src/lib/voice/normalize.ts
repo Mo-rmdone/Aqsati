@@ -24,6 +24,16 @@ export function fuzzyNamePattern(escaped: string): string {
   return `%${escaped.replace(/[اأإآةهىي]/g, '_')}%`;
 }
 
+/** Fuzzy pattern only for terms of 3+ normalized chars; shorter terms stay a plain contains. */
+export function namePattern(raw: string, escaped: string): string {
+  return normalizeAr(raw).length >= 3 ? fuzzyNamePattern(escaped) : `%${escaped}%`;
+}
+
+/** Keeps rows whose name contains the term after normalization, then caps to `limit`. */
+export function filterNameRows<T extends { name: string }>(rows: T[], term: string, limit: number): T[] {
+  return rows.filter((r) => containsAr(r.name, term)).slice(0, limit);
+}
+
 /** True when the normalized haystack contains the normalized needle (empty needle -> false). */
 export function containsAr(haystack: string, needle: string): boolean {
   const n = normalizeAr(needle);

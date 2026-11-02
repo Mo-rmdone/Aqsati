@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { Intent } from '../../../supabase/functions/voice-intent/logic';
 import { cairoDayStart } from '../lib/date';
 import { supabase } from '../lib/supabase';
-import { fuzzyNamePattern } from '../lib/voice/normalize';
+import { filterNameRows, namePattern } from '../lib/voice/normalize';
 import type { CustomerOption, VoiceData } from '../lib/voice/resolve';
 import { escapeSearch } from './customers';
 import { normalizeDigits } from './sales';
@@ -70,13 +70,13 @@ async function findCustomers(q: string): Promise<CustomerOption[]> {
   if (!term) return [];
   const safe = escapeSearch(term);
   const [byName, byPhone] = await Promise.all([
-    supabase.from('customer').select('id, name, phone').ilike('name', fuzzyNamePattern(safe)).order('created_at', { ascending: false }).limit(6),
+    supabase.from('customer').select('id, name, phone').ilike('name', namePattern(term, safe)).order('created_at', { ascending: false }).limit(40),
     supabase.from('customer').select('id, name, phone').ilike('phone', `${safe}%`).order('created_at', { ascending: false }).limit(6),
   ]);
   if (byName.error) throw byName.error;
   if (byPhone.error) throw byPhone.error;
   const merged = new Map<string, { id: string; name: string; phone: string }>();
-  for (const c of [...(byName.data ?? []), ...(byPhone.data ?? [])]) merged.set(c.id, c);
+  for (const c of [...filterNameRows(byName.data ?? [], term, 6), ...(byPhone.data ?? [])]) merged.set(c.id, c);
   const rows = Array.from(merged.values()).slice(0, 6);
   if (rows.length === 0) return [];
   const { data, error } = await supabase

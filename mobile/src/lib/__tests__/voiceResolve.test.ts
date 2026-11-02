@@ -1,5 +1,5 @@
 import type { Intent } from '../../../../supabase/functions/voice-intent/logic';
-import { fuzzyNamePattern, normalizeAr } from '../voice/normalize';
+import { filterNameRows, fuzzyNamePattern, namePattern, normalizeAr } from '../voice/normalize';
 import {
   balanceText,
   invoiceText,
@@ -58,6 +58,20 @@ describe('fix round 1', () => {
     expect(pattern).toBe('%_حمد ف_طم_%');
     const re = new RegExp('^' + pattern.slice(1, -1).replace(/_/g, '.') + '$');
     expect(re.test('أحمد فاطمة')).toBe(true);
+  });
+  it('namePattern: fuzzy only for 3+ normalized chars', () => {
+    expect(namePattern('احمد', 'احمد')).toBe('%_حمد%');
+    expect(namePattern('اح', 'اح')).toBe('%اح%');
+  });
+  it('filterNameRows post-filters by normalized contains before capping', () => {
+    const rows = [
+      { name: 'امد خالد' },
+      ...Array.from({ length: 7 }, (_, i) => ({ name: `اخمد ${i}` })),
+      { name: 'أحمد فاطمة' },
+    ];
+    const out = filterNameRows(rows, 'احمد', 6);
+    expect(out).toEqual([{ name: 'أحمد فاطمة' }]);
+    expect(filterNameRows(Array.from({ length: 9 }, () => ({ name: 'أحمد' })), 'احمد', 6)).toHaveLength(6);
   });
   it('leading ال stripped only when 3+ chars remain', () => {
     expect(normalizeAr('الله')).toBe('الله');
