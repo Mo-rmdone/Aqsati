@@ -18,7 +18,7 @@ const mockFrom = jest.fn((_t: string) => ({ upsert: mockUpsert, select: chain.se
 jest.mock('../../lib/supabase', () => ({ supabase: { from: (t: string) => mockFrom(t) } }));
 jest.mock('../../lib/auth', () => ({ useAuth: () => ({ profile: { tenant_id: 'tenant-1' } }) }));
 
-import { useFollowup, useLogContact } from '../followup';
+import { contactLine, useFollowup, useLogContact, type ContactLog } from '../followup';
 
 beforeAll(() => notifyManager.setScheduler((cb) => cb()));
 beforeEach(() => {
@@ -74,4 +74,28 @@ test('useFollowup orders on the server', async () => {
     ['next_due_date', undefined],
     ['name', undefined],
   ]);
+});
+
+describe('contactLine', () => {
+  const mk = (o: Partial<ContactLog>) =>
+    ({ created_at: '2026-11-01T08:42:00Z', note: null, promise_date: null, ...o }) as ContactLog;
+  const sub = '1 نوفمبر 2026 · 10:42 ص';
+
+  it('call and whatsapp', () => {
+    expect(contactLine(mk({ kind: 'call' }))).toEqual({ title: 'اتصلت', sub });
+    expect(contactLine(mk({ kind: 'whatsapp' }))).toEqual({ title: 'واتساب', sub });
+  });
+  it('note shows its text, or a fallback when empty', () => {
+    expect(contactLine(mk({ kind: 'note', note: 'قال هيجي الخميس' })).title).toBe('قال هيجي الخميس');
+    expect(contactLine(mk({ kind: 'note', note: null })).title).toBe('ملاحظة');
+    expect(contactLine(mk({ kind: 'note', note: '  ' })).title).toBe('ملاحظة');
+  });
+  it('promise adds the date to the title', () => {
+    expect(contactLine(mk({ kind: 'note', note: 'كلمته', promise_date: '2026-11-15' })).title).toBe(
+      'كلمته · وعد يدفع 15 نوفمبر 2026',
+    );
+    expect(contactLine(mk({ kind: 'note', note: null, promise_date: '2026-11-15' })).title).toBe(
+      'ملاحظة · وعد يدفع 15 نوفمبر 2026',
+    );
+  });
 });

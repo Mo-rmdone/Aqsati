@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../lib/auth';
+import { formatDateAr, localDateISO, timeAr } from '../lib/date';
 import type { Tables } from '../lib/database.types';
 import { supabase } from '../lib/supabase';
 
@@ -58,6 +59,14 @@ export function useLogContact() {
       qc.invalidateQueries({ queryKey: ['contacts', c.customerId] });
     },
   });
+}
+
+/** One timeline entry for the customer file: what happened, and when (Cairo). */
+export function contactLine(c: ContactLog): { title: string; sub: string } {
+  const note = c.note?.trim();
+  const base = c.kind === 'call' ? 'اتصلت' : c.kind === 'whatsapp' ? 'واتساب' : note || 'ملاحظة';
+  const title = c.promise_date ? `${base} · وعد يدفع ${formatDateAr(c.promise_date)}` : base;
+  return { title, sub: `${formatDateAr(localDateISO(c.created_at))} · ${timeAr(c.created_at)}` };
 }
 
 export function useCustomerContacts(customerId: string) {

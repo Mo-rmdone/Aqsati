@@ -1,15 +1,20 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MessageCircle, Phone, StickyNote, type LucideIcon } from 'lucide-react-native';
+import { useRef, useState } from 'react';
 import { Linking, ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useCustomer, useCustomerSummary } from '../../../../api/customers';
+import { contactLine, useCustomerContacts, useLogContact, type ContactKind, type ContactLog } from '../../../../api/followup';
 import { useCustomerInvoices } from '../../../../api/invoices';
 import { isOpeningBalance, paymentSpreadText, useCustomerPayments, type CustomerPayment } from '../../../../api/payments';
 import { PAYMENT_METHODS } from '../../../../api/sales';
-import { formatDateAr, localDateISO } from '../../../../lib/date';
+import { formatDateAr, localDateISO, todayISO } from '../../../../lib/date';
+import { newId } from '../../../../lib/ids';
 import { customerStatusChip, invoiceStatusChip } from '../../../../lib/status';
 import { formatEGP } from '../../../../lib/money';
 import { whatsappLink } from '../../../../lib/whatsapp';
 import { Button } from '../../../../ui/Button';
+import { ContactSheet } from '../../../../ui/ContactSheet';
 import { DataTable, type Column } from '../../../../ui/DataTable';
 import { useIsDesktop } from '../../../../ui/layout';
 import { Money } from '../../../../ui/Money';
@@ -62,6 +67,91 @@ const paymentColumns: Column<CustomerPayment>[] = [
   { key: 'spread', title: 'اتوزعت على', render: (p) => <Text style={styles.cell}>{paymentSpreadText(p.lines)}</Text> },
 ];
 
+const KIND_ICON: Record<ContactKind, LucideIcon> = { call: Phone, whatsapp: MessageCircle, note: StickyNote };
+const COLLAPSED = 10;
+
+/** Logging for this customer: ids are reused per kind until a log succeeds, so retries and double presses are idempotent. */
+function useContactActions(customerId: string) {
+  const log = useLogContact();
+  const pending = useRef(new Map<ContactKind, string>());
+  const [error, setError] = useState('');
+
+  const send = async (kind: ContactKind, extra?: { note?: string; promiseDate?: string }, fixedId?: string) => {
+    let id = fixedId ?? pending.current.get(kind);
+    if (!id) {
+      id = newId();
+      pending.current.set(kind, id);
+    }
+    try {
+      await log.mutateAsync({ id, customerId, kind, ...extra });
+      pending.current.delete(kind);
+      setError('');
+      return true;
+    } catch {
+      setError('مقدرتش أسجّل التواصل، جرّب تاني');
+      return false;
+    }
+  };
+
+  return { send, error };
+}
+
+function ContactLogCard({
+  rows,
+  loading,
+  failed,
+  error,
+  onCall,
+  onNote,
+}: {
+  rows: ContactLog[];
+  loading: boolean;
+  failed: boolean;
+  error: string;
+  onCall: () => void;
+  onNote: () => void;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, COLLAPSED);
+  return (
+    <View style={styles.card}>
+      <Text style={styles.heading}>سجل التواصل</Text>
+      <View style={styles.contactButtons}>
+        <View style={styles.flex}>
+          <Button title="اتصلت" variant="secondary" onPress={onCall} />
+        </View>
+        <View style={styles.flex}>
+          <Button title="ملاحظة" variant="secondary" onPress={onNote} />
+        </View>
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {failed ? <Text style={styles.error}>تعذر تحميل سجل التواصل</Text> : null}
+      {loading ? <ActivityIndicator color={colors.primary} /> : null}
+      {!loading && !failed && rows.length === 0 ? <Text style={styles.empty}>لسه مفيش تواصل مسجّل</Text> : null}
+      {shown.map((c) => {
+        const Icon = KIND_ICON[c.kind as ContactKind] ?? StickyNote;
+        const line = contactLine(c);
+        return (
+          <View key={c.id} style={styles.contactItem}>
+            <View style={styles.iconDot}>
+              <Icon size={size.iconSm} color={colors.brand} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.cellStrong}>{line.title}</Text>
+              <Text style={styles.sub}>{line.sub}</Text>
+            </View>
+          </View>
+        );
+      })}
+      {rows.length > COLLAPSED ? (
+        <Pressable accessibilityRole="button" onPress={() => setAll((v) => !v)} style={styles.linkBtn}>
+          <Text style={styles.link}>{all ? 'عرض أقل' : 'عرض الكل'}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function CustomerFile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -70,6 +160,11 @@ export default function CustomerFile() {
   const summary = useCustomerSummary(id);
   const invoices = useCustomerInvoices(id);
   const payments = useCustomerPayments(id);
+  const contacts = useCustomerContacts(id);
+  const { send, error: contactError } = useContactActions(id);
+  const [noteOpen, setNoteOpen] = useState(false);
+  // One id per note-sheet session: retries of the same sheet reuse it, a new sheet gets a new one.
+  const noteId = useRef('');
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/customers'));
 
   if (customer.isLoading || summary.isLoading) {
@@ -98,7 +193,17 @@ export default function CustomerFile() {
   const actions = (
     <View style={desktop ? styles.actionsRow : styles.actionsCol}>
       {remaining > 0 ? <Button title="تسجيل دفعة" onPress={() => router.push(`/payment/new?customerId=${id}`)} /> : null}
-      {wa ? <Button title="واتساب" variant="secondary" onPress={() => Linking.openURL(wa)} /> : null}
+      {wa ? (
+        <Button
+          title="واتساب"
+          variant="secondary"
+          onPress={() => {
+            // Open synchronously on the press (popup blockers reject window.open after an await), log in parallel.
+            void Linking.openURL(wa);
+            void send('whatsapp');
+          }}
+        />
+      ) : null}
     </View>
   );
 
@@ -116,6 +221,20 @@ export default function CustomerFile() {
       ) : null}
       <Button title="تعديل" variant="secondary" onPress={() => router.push(`/customer/${id}/edit`)} />
     </View>
+  );
+
+  const contactCard = (
+    <ContactLogCard
+      rows={contacts.data ?? []}
+      loading={contacts.isLoading}
+      failed={!!contacts.error}
+      error={contactError}
+      onCall={() => void send('call')}
+      onNote={() => {
+        noteId.current = newId();
+        setNoteOpen(true);
+      }}
+    />
   );
 
   const main = (
@@ -180,14 +299,29 @@ export default function CustomerFile() {
       {desktop ? (
         <View style={styles.columns}>
           {main}
-          <View style={styles.side}>{details}</View>
+          <View style={styles.side}>
+            {details}
+            {contactCard}
+          </View>
         </View>
       ) : (
         <>
           {main}
           {details}
+          {contactCard}
         </>
       )}
+      <ContactSheet
+        visible={noteOpen}
+        customerName={c.name}
+        today={todayISO()}
+        onClose={() => setNoteOpen(false)}
+        onSave={async ({ note, promiseDate }) => {
+          const ok = await send('note', { note, promiseDate }, noteId.current);
+          if (ok) setNoteOpen(false);
+          return ok;
+        }}
+      />
     </Screen>
   );
 }
@@ -204,7 +338,19 @@ const styles = StyleSheet.create({
   },
   columns: { flexDirection: 'row', gap: space[6], alignItems: 'flex-start' },
   main: { flex: 1, gap: space[4], minWidth: 0 },
-  side: { width: size.sideColumn },
+  side: { width: size.sideColumn, gap: space[4] },
+  flex: { flex: 1 },
+  contactButtons: { flexDirection: 'row', gap: space[2] },
+  contactItem: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  iconDot: {
+    width: size.tapMin - space[2],
+    height: size.tapMin - space[2],
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sub: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
   tile: { flexGrow: 1, flexBasis: 160 },
   subtitle: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] },
