@@ -73,18 +73,19 @@ const COLLAPSED = 10;
 /** Logging for this customer: ids are reused per kind until a log succeeds, so retries and double presses are idempotent. */
 function useContactActions(customerId: string) {
   const log = useLogContact();
-  const pending = useRef(new Map<ContactKind, string>());
+  const pending = useRef(new Map<string, string>());
   const [error, setError] = useState('');
 
   const send = async (kind: ContactKind, extra?: { note?: string; promiseDate?: string }, fixedId?: string) => {
-    let id = fixedId ?? pending.current.get(kind);
+    const key = `${customerId}:${kind}`;
+    let id = fixedId ?? pending.current.get(key);
     if (!id) {
       id = newId();
-      pending.current.set(kind, id);
+      pending.current.set(key, id);
     }
     try {
       await log.mutateAsync({ id, customerId, kind, ...extra });
-      pending.current.delete(kind);
+      pending.current.delete(key);
       setError('');
       return true;
     } catch {
@@ -101,6 +102,7 @@ function ContactLogCard({
   loading,
   failed,
   error,
+  called,
   onCall,
   onNote,
 }: {
@@ -108,6 +110,7 @@ function ContactLogCard({
   loading: boolean;
   failed: boolean;
   error: string;
+  called: boolean;
   onCall: () => void;
   onNote: () => void;
 }) {
@@ -118,7 +121,7 @@ function ContactLogCard({
       <Text style={styles.heading}>سجل التواصل</Text>
       <View style={styles.contactButtons}>
         <View style={styles.flex}>
-          <Button title="اتصلت" variant="secondary" onPress={onCall} />
+          <Button title={called ? '✓ اتصلت' : 'اتصلت'} variant="secondary" disabled={called} onPress={onCall} />
         </View>
         <View style={styles.flex}>
           <Button title="ملاحظة" variant="secondary" onPress={onNote} />
@@ -162,6 +165,11 @@ export default function CustomerFile() {
   const payments = useCustomerPayments(id);
   const contacts = useCustomerContacts(id);
   const { send, error: contactError } = useContactActions(id);
+  // Optimistic one-way "called" mark until the refetched log shows today's call (server data stays the truth).
+  const [calledNow, setCalledNow] = useState('');
+  const calledToday =
+    calledNow === id ||
+    (contacts.data ?? []).some((x) => x.kind === 'call' && localDateISO(x.created_at) === todayISO());
   const [noteOpen, setNoteOpen] = useState(false);
   // One id per note-sheet session: retries of the same sheet reuse it, a new sheet gets a new one.
   const noteId = useRef('');
@@ -229,7 +237,8 @@ export default function CustomerFile() {
       loading={contacts.isLoading}
       failed={!!contacts.error}
       error={contactError}
-      onCall={() => void send('call')}
+      called={calledToday}
+      onCall={() => void send('call').then((ok) => ok && setCalledNow(id))}
       onNote={() => {
         noteId.current = newId();
         setNoteOpen(true);
