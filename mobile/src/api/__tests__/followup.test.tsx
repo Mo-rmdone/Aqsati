@@ -57,6 +57,14 @@ test('empty note becomes null', async () => {
   expect(mockUpsert.mock.calls[0][0].promise_date).toBeNull();
 });
 
+test('promise_date is only sent for notes', async () => {
+  const { result } = await renderHook(() => useLogContact(), { wrapper });
+  await act(async () => {
+    await result.current.mutateAsync({ id: 'k-3', customerId: 'c-1', kind: 'call', promiseDate: '2026-12-05' });
+  });
+  expect(mockUpsert.mock.calls[0][0].promise_date).toBeNull();
+});
+
 test('useFollowup orders on the server', async () => {
   const { result } = await renderHook(() => useFollowup(), { wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -33,10 +33,10 @@ export function followupReminder(row: Tables<'v_followup'>, merchant: string): s
   if ((row.overdue_count ?? 0) > 0) {
     return `أهلاً ${name} 👋\n` + `متأخر عليك ${formatEGP(row.overdue_amount ?? 0)} من أقساطك.\n` + tail;
   }
+  const when = row.next_due_date ? ` مستحق بتاريخ ${formatDateAr(row.next_due_date)}` : '';
   return (
     `أهلاً ${name} 👋\n` +
-    `تذكير بقسط بمبلغ ${formatEGP(row.next_due_amount ?? 0)} ` +
-    `مستحق بتاريخ ${formatDateAr(row.next_due_date ?? '')}.\n` +
+    `تذكير بقسط بمبلغ ${formatEGP(row.next_due_amount ?? 0)}${when}.\n` +
     tail
   );
 }

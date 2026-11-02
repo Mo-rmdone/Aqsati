@@ -47,7 +47,7 @@ export function useLogContact() {
           customer_id: c.customerId,
           kind: c.kind,
           note: c.note?.trim() || null,
-          promise_date: c.promiseDate || null,
+          promise_date: c.kind === 'note' ? c.promiseDate || null : null,
         },
         { onConflict: 'id', ignoreDuplicates: true },
       );
