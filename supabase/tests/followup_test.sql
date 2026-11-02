@@ -59,9 +59,8 @@ update public.installment set due_date = current_setting('t.today')::date + 10
 update public.installment set due_date = current_setting('t.today')::date + 5
   where seq_no = 1 and contract_id = current_setting('t.k_near')::uuid;
 
--- contact rows, written as the owner through RLS
-set local role authenticated;
-select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.uid'), 'role', 'authenticated')::text, true);
+-- contact rows with controlled timestamps are fixtures: written as the table owner
+-- (the insert policy bounds created_at for clients)
 do $$
 declare today date := current_setting('t.today')::date; id1 uuid;
 begin
@@ -82,14 +81,22 @@ begin
          (current_setting('t.v')::uuid, (select id from public.customer where name = 'F-last'), 'whatsapp', 'new', now() - interval '1 hour');
 end $$;
 
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.uid'), 'role', 'authenticated')::text, true);
+
 -- update / delete: no policy, so zero rows are affected
 do $$
 declare n_up int; n_del int;
 begin
-  update public.contact_log set note = 'tampered' where id = current_setting('t.row1')::uuid;
-  get diagnostics n_up = row_count;
-  delete from public.contact_log where id = current_setting('t.row1')::uuid;
-  get diagnostics n_del = row_count;
+  -- 0 rows (no policy) before 0024, permission denied (privilege revoked) after: both mean "no effect"
+  begin
+    update public.contact_log set note = 'tampered' where id = current_setting('t.row1')::uuid;
+    get diagnostics n_up = row_count;
+  exception when insufficient_privilege then n_up := 0; end;
+  begin
+    delete from public.contact_log where id = current_setting('t.row1')::uuid;
+    get diagnostics n_del = row_count;
+  exception when insufficient_privilege then n_del := 0; end;
   perform set_config('t.n_up', n_up::text, true);
   perform set_config('t.n_del', n_del::text, true);
 end $$;
@@ -97,6 +104,8 @@ end $$;
 -- constraint violations (as owner)
 do $$
 begin
+  insert into public.contact_log(tenant_id, customer_id, kind, note)
+  values (current_setting('t.v')::uuid, (select id from public.customer where name = 'F-far'), 'call', 'owner-ins');
   begin
     insert into public.contact_log(tenant_id, customer_id, kind, promise_date)
     values (current_setting('t.v')::uuid, (select id from public.customer where name = 'F-none'), 'call', current_date + 1);
@@ -126,7 +135,7 @@ reset role;
 update public.profile set role = 'owner' where id = current_setting('t.uid')::uuid;
 
 -- crud
-insert into tap(l) select is((select count(*)::int from public.contact_log where id = current_setting('t.row1')::uuid), 1, 'owner insert works');
+insert into tap(l) select is((select count(*)::int from public.contact_log where note = 'owner-ins' and created_by = current_setting('t.uid')::uuid), 1, 'owner insert works');
 insert into tap(l) select is(current_setting('t.viewer'), '42501', 'viewer insert rejected by RLS');
 insert into tap(l) select is(current_setting('t.n_up') || ':' || (select note from public.contact_log where id = current_setting('t.row1')::uuid), '0:spoke', 'update affects 0 rows, note unchanged');
 insert into tap(l) select is(current_setting('t.n_del') || ':' || (select count(*) from public.contact_log where id = current_setting('t.row1')::uuid), '0:1', 'delete affects 0 rows, row still present');
