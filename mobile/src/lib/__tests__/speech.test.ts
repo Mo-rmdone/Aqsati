@@ -1,4 +1,4 @@
-import { listenOnce, speak, speechErrorText, speechSupported } from '../speech';
+import { cancelSpeak, listenOnce, speak, speechErrorText, speechSupported } from '../speech';
 
 class FakeRecognition {
   static last: FakeRecognition | null = null;
@@ -215,6 +215,61 @@ test('speak gives up silently after 1 s if voices never appear', () => {
   speak('x');
   jest.advanceTimersByTime(1000);
   expect(synth.speak).not.toHaveBeenCalled();
+});
+
+test('repeated / late onstart never extends the absolute deadline', async () => {
+  const { promise } = listenOnce();
+  const r = FakeRecognition.last!;
+  const out = code(promise);
+  jest.advanceTimersByTime(25000);
+  r.onstart!();
+  jest.advanceTimersByTime(3000);
+  r.onstart!();
+  jest.advanceTimersByTime(1999);
+  expect(r.abort).not.toHaveBeenCalled();
+  jest.advanceTimersByTime(1);
+  expect(await out).toBe('no_speech');
+  expect(r.abort).toHaveBeenCalled();
+});
+
+function deferredSynth() {
+  let voices: unknown[] = [];
+  const listeners = new Set<() => void>();
+  const synth = {
+    cancel: jest.fn(),
+    speak: jest.fn(),
+    getVoices: () => voices,
+    addEventListener: (_n: string, f: () => void) => listeners.add(f),
+    removeEventListener: (_n: string, f: () => void) => listeners.delete(f),
+  };
+  g.speechSynthesis = synth;
+  g.SpeechSynthesisUtterance = class {
+    lang = '';
+    voice: unknown = null;
+    constructor(public text: string) {}
+  };
+  return { synth, listeners, fire: () => { voices = [{ lang: 'ar-EG' }]; [...listeners].forEach((f) => f()); } };
+}
+
+test('cancelSpeak drops a deferred speak', () => {
+  const d = deferredSynth();
+  speak('قديم');
+  cancelSpeak();
+  expect(d.listeners.size).toBe(0);
+  d.fire();
+  jest.advanceTimersByTime(2000);
+  expect(d.synth.speak).not.toHaveBeenCalled();
+  expect(d.synth.cancel).toHaveBeenCalled();
+});
+
+test('two speaks while waiting: only the last can speak', () => {
+  const d = deferredSynth();
+  speak('أول');
+  speak('تاني');
+  expect(d.listeners.size).toBe(1);
+  d.fire();
+  expect(d.synth.speak).toHaveBeenCalledTimes(1);
+  expect(d.synth.speak.mock.calls[0][0].text).toBe('تاني');
 });
 
 test('speak is a no-op without an ar voice or synthesis', () => {

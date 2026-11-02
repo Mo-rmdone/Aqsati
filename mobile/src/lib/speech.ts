@@ -103,11 +103,16 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
       rec.onend = () => fail('no_speech');
       // The mic permission prompt may be slow: the real timeout starts at onstart;
       // this longer fallback only covers onstart never firing.
-      timer = setTimeout(() => fail('no_speech'), Math.max(timeoutMs, START_FALLBACK_MS));
+      // One absolute deadline bounds the mic window; a repeated onstart can never extend it.
+      const total = Math.max(timeoutMs, START_FALLBACK_MS);
+      const deadline = Date.now() + total;
+      let started = false;
+      timer = setTimeout(() => fail('no_speech'), total);
       rec.onstart = () => {
-        if (done) return;
+        if (done || started) return;
+        started = true;
         if (timer) clearTimeout(timer);
-        timer = setTimeout(() => fail('no_speech'), timeoutMs);
+        timer = setTimeout(() => fail('no_speech'), Math.max(0, Math.min(timeoutMs, deadline - Date.now())));
       };
       rec.start();
     } catch {
@@ -129,7 +134,16 @@ function say(synth: any, Utter: any, voice: unknown, text: string) {
   synth.speak(u);
 }
 
+let dropPending: (() => void) | null = null;
+
+/** Drops any deferred speak (timer, listener, text) and stops current speech. */
+export function cancelSpeak(): void {
+  dropPending?.();
+  (globalThis as any).speechSynthesis?.cancel?.();
+}
+
 export function speak(text: string): void {
+  dropPending?.();
   const g = globalThis as any;
   const synth = g.speechSynthesis;
   const Utter = g.SpeechSynthesisUtterance;
@@ -138,16 +152,21 @@ export function speak(text: string): void {
   if (voices.length === 0 && typeof synth.addEventListener === 'function') {
     // Chrome loads voices lazily: wait once (max 1 s) for them.
     let settled = false;
-    const finish = () => {
-      if (settled) return;
+    const drop = () => {
       settled = true;
       clearTimeout(t);
       synth.removeEventListener?.('voiceschanged', finish);
+      if (dropPending === drop) dropPending = null;
+    };
+    const finish = () => {
+      if (settled) return;
+      drop();
       const v = (synth.getVoices?.() ?? []).find(isAr);
       if (v) say(synth, Utter, v, text);
     };
     const t = setTimeout(finish, 1000);
     synth.addEventListener('voiceschanged', finish);
+    dropPending = drop;
     return;
   }
   const voice = voices.find(isAr);
