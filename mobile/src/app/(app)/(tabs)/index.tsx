@@ -27,6 +27,7 @@ import { Screen } from '../../../ui/Screen';
 import { StatusChip } from '../../../ui/StatusChip';
 import { Tile } from '../../../ui/Tile';
 import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
+import { VoicePanel } from '../../../ui/VoicePanel';
 
 function isOverdue(r: FollowupRow): boolean {
   return r.status === 'late';
@@ -457,11 +458,13 @@ export default function Home() {
         </View>
       )}
       {tiles}
+      {desktop ? null : <VoicePanel onNavigate={(p) => router.push(p as never)} />}
       {kpi.isError ? <Text style={styles.error}>تعذّر تحميل الأرقام</Text> : null}
       {desktop ? (
         <View style={styles.split}>
           <View style={styles.main}>{worklist}</View>
           <View style={styles.side}>
+            <VoicePanel onNavigate={(p) => router.push(p as never)} />
             <ActivityCard />
           </View>
         </View>
@@ -495,7 +498,7 @@ const styles = StyleSheet.create({
   tileCell: { flex: 1 },
   split: { flexDirection: 'row', alignItems: 'flex-start', gap: space[6] },
   main: { flex: 1, gap: space[4] },
-  side: { width: size.sideColumn },
+  side: { width: size.sideColumn, gap: space[4] },
   heading: { ...type.title3, color: colors.ink, textAlign: 'right', marginTop: space[2] },
   headingRow: {
     flexDirection: 'row',
