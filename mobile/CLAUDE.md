@@ -21,3 +21,4 @@ Source of truth: `docs/brand/design-system/` (tokens.json, CLAUDE.md, logo files
 - Text ≥ 16 on phone; 15 is allowed only inside desktop tables.
 - Never put tests under `src/app/` (Expo Router would treat them as routes).
 - The Cairo day comes from `todayISO()` (`src/lib/date.ts`), never `new Date().toISOString()`.
+- On web, open external links (WhatsApp, tel:) synchronously in the press handler, before any await, or the browser blocks the popup. Log or save in parallel.

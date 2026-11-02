@@ -30,6 +30,7 @@ The owner records every sale as an invoice (cash or installment). Notah calculat
 | End-to-end acceptance by the owner (signed in) | ⏳ Not yet run — see §9 |
 | Screen designs from Claude Design | ⏳ Not received yet |
 | Phase 2: Android/iOS app + offline | ⏳ Not started |
+| Follow-up (home list, call/WhatsApp/note + promise, contact log in the customer file) | ✅ Built (migrations 0023/0024 pending deploy) |
 | Excel import (customers + running contracts + paid months) | ✅ Built (pending deploy) |
 | Voice commands, ID-card OCR | ⏳ Not started |
 | Landing page | ⏳ Not started |
@@ -71,6 +72,9 @@ due(i)    = sale_date + i months                // first installment one month a
 ### 3.4 Customers
 - Name and phone required. Phone must be an Egyptian mobile: `^01[0125][0-9]{8}$`. National ID optional; if given `^[23][0-9]{13}$`.
 - A duplicate phone in the same shop is a **warning, not a block** ("use the existing customer, or it's someone else").
+
+### 3.4b Follow-up (v2)
+Home lists customers with something due within 7 days or overdue (`v_followup`) in buckets: 0 needs a call, 1 promised (latest `promise_date` after the Cairo today), 2 contacted today (a call or WhatsApp on the Cairo day; a note alone is not a contact). Contacts are written to `contact_log` by `useLogContact`; the client never sends `created_at`/`created_by`. WhatsApp opens synchronously in the press handler and logs in parallel; "اتصلت" is one-way (no undo). `promise_date` is only valid on notes. Last contact ties break by newest `created_at`.
 
 ### 3.5 Never break these (anti-goals)
 - Any money error: wrong installment, a payment saved twice, a payment silently lost.
@@ -117,10 +121,11 @@ docs/        Specs, plans, brand, design system, this project's history.
 | `payment` | A receipt: `receipt_no` per shop, amount, method (cash/instapay/fawry/wallet/card/bank), `received_at`, `edited_at`, `is_opening` (money from before Notah; excluded from "collected this month"). |
 | `payment_line` | The owner's split of a payment per contract (`kind` down_payment/cash/installment). |
 | `payment_allocation` | Per-installment detail of where money went. |
+| `contact_log` | Follow-up log (v2, `0023`/`0024`): `kind` call/whatsapp/note, `note` (≤500), `promise_date` (notes only), `created_by`, `created_at`. Insert-only for the app (no update/delete); the insert policy pins `created_by = auth.uid()`, `created_at` within −5/+1 min of now, and the customer must be visible under RLS. |
 | `audit_log` | Every change (triggers) + explicit `payment_edit` rows. |
 | `credit_invoice` | Legacy آجل invoices — **not used in v1**. |
 
-Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining per contract), `v_collections_kpi` (home tiles), `v_worklist` ("who to call today"), `v_aging`, `v_installment_aging`.
+Views (all `security_invoker`, RLS-scoped): `v_contract_balance` (paid/remaining per contract), `v_collections_kpi` (home tiles), `v_worklist` ("who to call today"), `v_aging`, `v_installment_aging`, `v_followup` (home follow-up list, see §3.4b).
 
 v2 list views (migration `0021_v2_lists.sql`, `security_invoker`, anon revoked; void contracts excluded; past-due is computed from `due_date < Cairo today` and unpaid, not from the nightly flag):
 - `v_invoice_list` — one row per non-void contract: contract_no, external_invoice_no, customer name/phone, product, sale_type, `sale_date`, `total_payable`, `paid`, `remaining`, `overdue_count`, `next_due_date`, `status` (`settled` / `late` / `open` / `unknown`).
