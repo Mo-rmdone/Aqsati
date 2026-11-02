@@ -1,17 +1,22 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { useCustomerContracts } from '../../../api/contracts';
 import { openInstallmentContracts, useRecordPayment } from '../../../api/payments';
 import { useAttempt } from '../../../lib/attempt';
+import { parsePaymentPrefill } from '../../../lib/prefill';
 import { PaymentForm } from '../../../ui/PaymentForm';
 import { Screen } from '../../../ui/Screen';
 import { colors, font } from '../../../ui/theme';
 
 export default function NewPayment() {
   const router = useRouter();
-  const { customerId = '', contractId } = useLocalSearchParams<{ customerId?: string; contractId?: string }>();
+  const params = useLocalSearchParams<{ customerId?: string; contractId?: string; amount?: string; method?: string }>();
+  const customerId = (Array.isArray(params.customerId) ? params.customerId[0] : params.customerId) ?? '';
+  const contractId = Array.isArray(params.contractId) ? params.contractId[0] : params.contractId;
+  // Seeds the form once; later param changes never override what the user typed.
+  const prefill = useRef(parsePaymentPrefill(params)).current;
   const record = useRecordPayment();
   // Same id for a pure retry; a new one once the inputs changed after an attempt.
   const attempt = useAttempt();
@@ -36,6 +41,8 @@ export default function NewPayment() {
             title: `${c.product_desc ?? ''} (عقد ${c.contract_no})`,
             remaining: Number(c.remaining),
           }))}
+          initialTotal={prefill.amount !== undefined ? String(prefill.amount) : undefined}
+          initialMethod={prefill.method}
           submitLabel="حفظ الدفعة"
           loading={record.isPending}
           onSubmit={async ({ method, lines, sig }) => {

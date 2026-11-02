@@ -32,12 +32,15 @@ export function PaymentForm({
   contracts,
   initialAmounts,
   initialMethod = 'cash',
+  initialTotal,
   submitLabel,
   loading,
   onSubmit,
 }: {
   contracts: PaymentFormContract[];
   initialAmounts?: Record<string, string>;
+  /** Seeds the total box once (e.g. from a voice command); auto-split applies as usual. */
+  initialTotal?: string;
   initialMethod?: PaymentMethod;
   submitLabel: string;
   loading: boolean;
@@ -46,7 +49,7 @@ export function PaymentForm({
   const single = contracts.length === 1;
   const sumOf = (m: Record<string, string>) =>
     contracts.reduce((s, c) => s + (parseAmount(m[c.contractId] ?? '') || 0), 0);
-  const [total, setTotal] = useState(() => (initialAmounts ? sumOf(initialAmounts).toFixed(2) : ''));
+  const [total, setTotal] = useState(() => initialTotal ?? (initialAmounts ? sumOf(initialAmounts).toFixed(2) : ''));
   const [amounts, setAmounts] = useState<Record<string, string>>(initialAmounts ?? {});
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [failure, setFailure] = useState<string | null>(null);

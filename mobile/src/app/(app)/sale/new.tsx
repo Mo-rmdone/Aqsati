@@ -24,6 +24,7 @@ import {
   type SaleForm,
 } from '../../../api/sales';
 import { useAttempt } from '../../../lib/attempt';
+import { parseSalePrefill } from '../../../lib/prefill';
 import { formatDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
 import { validateCustomer } from '../../../lib/validation';
@@ -80,7 +81,10 @@ function CustomerPicker({
 
 export default function NewSale() {
   const router = useRouter();
-  const { customerId: paramCustomerId } = useLocalSearchParams<{ customerId?: string }>();
+  const params = useLocalSearchParams<Record<string, string | string[]>>();
+  const paramCustomerId = Array.isArray(params.customerId) ? params.customerId[0] : params.customerId;
+  // Seeds the form once; later param changes never override what the user typed.
+  const prefill = useRef(parseSalePrefill(params)).current;
   // One id per form instance: a double tap or retry re-sends the same sale.
   // Same id for a pure retry; a new one once the form changed after an attempt.
   const attempt = useAttempt();
@@ -91,7 +95,9 @@ export default function NewSale() {
   const param = useCustomer(paramCustomerId ?? '');
   // A customer typed in here is created together with the invoice — there is no
   // separate "add customer" step. Its id is fixed per form so a retry never duplicates it.
-  const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(() =>
+    prefill.newName && !paramCustomerId ? prefillFromSearch(prefill.newName) : null,
+  );
   const newCustomerId = useRef(newId());
   const [customerErrors, setCustomerErrors] = useState<ReturnType<typeof validateCustomer>>({});
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
@@ -101,14 +107,14 @@ export default function NewSale() {
     : (picked ?? (paramCustomerId && param.data ? { id: param.data.id, name: param.data.name } : null));
   const setNc = (patch: Partial<NewCustomerForm>) => setNewCustomer((c) => ({ ...(c ?? EMPTY_CUSTOMER), ...patch }));
 
-  const [productDesc, setProductDesc] = useState('');
-  const [price, setPrice] = useState('');
-  const [saleType, setSaleType] = useState<SaleForm['saleType']>('installment');
-  const [down, setDown] = useState('');
-  const [rate, setRate] = useState('');
-  const [years, setYears] = useState(1);
+  const [productDesc, setProductDesc] = useState(prefill.productDesc ?? '');
+  const [price, setPrice] = useState(prefill.price ?? '');
+  const [saleType, setSaleType] = useState<SaleForm['saleType']>(prefill.saleType ?? 'installment');
+  const [down, setDown] = useState(prefill.down ?? '');
+  const [rate, setRate] = useState(prefill.rate ?? '');
+  const [years, setYears] = useState(prefill.years ?? 1);
   const [saleDate, setSaleDate] = useState(todayISO());
-  const [invoiceNo, setInvoiceNo] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState(prefill.invoiceNo ?? '');
   const [paymentMethod, setPaymentMethod] = useState<SaleForm['paymentMethod']>('cash');
   const [submitted, setSubmitted] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
