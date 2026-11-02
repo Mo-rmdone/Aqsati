@@ -89,7 +89,8 @@ function useContactActions(customerId: string) {
       setError('');
       return true;
     } catch {
-      setError('مقدرتش أسجّل التواصل، جرّب تاني');
+      // a failed note shows its error in the sheet only
+      if (kind !== 'note') setError('مقدرتش أسجّل التواصل، جرّب تاني');
       return false;
     }
   };

@@ -30,7 +30,7 @@ The owner records every sale as an invoice (cash or installment). Notah calculat
 | End-to-end acceptance by the owner (signed in) | ⏳ Not yet run — see §9 |
 | Screen designs from Claude Design | ⏳ Not received yet |
 | Phase 2: Android/iOS app + offline | ⏳ Not started |
-| Follow-up (home list, call/WhatsApp/note + promise, contact log in the customer file) | ✅ Built (migrations 0023/0024 pending deploy) |
+| Follow-up (home list, call/WhatsApp/note + promise, contact log in the customer file) | ✅ Built (migrations 0023–0025 applied; app pending deploy) |
 | Excel import (customers + running contracts + paid months) | ✅ Built (pending deploy) |
 | Voice commands, ID-card OCR | ⏳ Not started |
 | Landing page | ⏳ Not started |
@@ -121,7 +121,7 @@ docs/        Specs, plans, brand, design system, this project's history.
 | `payment` | A receipt: `receipt_no` per shop, amount, method (cash/instapay/fawry/wallet/card/bank), `received_at`, `edited_at`, `is_opening` (money from before Notah; excluded from "collected this month"). |
 | `payment_line` | The owner's split of a payment per contract (`kind` down_payment/cash/installment). |
 | `payment_allocation` | Per-installment detail of where money went. |
-| `contact_log` | Follow-up log (v2, `0023`/`0024`): `kind` call/whatsapp/note, `note` (≤500), `promise_date` (notes only), `created_by`, `created_at`. Insert-only for the app (no update/delete); the insert policy pins `created_by = auth.uid()`, `created_at` within −5/+1 min of now, and the customer must be visible under RLS. |
+| `contact_log` | Follow-up log (v2, `0023`–`0025`): `kind` call/whatsapp/note, `note` (≤500), `promise_date` (notes only), `created_by`, `created_at`. Insert-only for the app (no update/delete); the insert policy pins `created_by = auth.uid()`, `created_at` within −5/+1 min of now, and the customer must be visible under RLS. |
 | `audit_log` | Every change (triggers) + explicit `payment_edit` rows. |
 | `credit_invoice` | Legacy آجل invoices — **not used in v1**. |
 

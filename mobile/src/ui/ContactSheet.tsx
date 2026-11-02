@@ -56,7 +56,10 @@ export function ContactSheet({
 
   const typedDate = typed.trim() ? parseDayMonth(typed, today) : null;
   const typedInvalid = typed.trim() !== '' && typedDate === null;
-  const promiseDate = typed.trim() ? typedDate : chosen;
+  const choices = promiseChoices(today);
+  // Chips are keyed/selected by label: on a month's last day two labels share one date.
+  const chosenDate = choices.find((c) => c.label === chosen)?.date ?? null;
+  const promiseDate = typed.trim() ? typedDate : chosenDate;
   const canSave = !typedInvalid && (note.trim() !== '' || promiseDate !== null);
 
   return (
@@ -80,16 +83,16 @@ export function ContactSheet({
             </View>
             <Text style={styles.label}>وعد يدفع يوم</Text>
             <View style={styles.chips}>
-              {promiseChoices(today).map((c) => {
-                const on = chosen === c.date && !typed.trim();
+              {choices.map((c) => {
+                const on = chosen === c.label && !typed.trim();
                 return (
                   <Pressable
-                    key={c.date}
+                    key={c.label}
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
                     onPress={() => {
                       setTyped('');
-                      setChosen(on ? null : c.date);
+                      setChosen(on ? null : c.label);
                     }}
                     style={[styles.chip, on && styles.chipOn]}
                   >

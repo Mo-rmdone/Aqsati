@@ -40,6 +40,17 @@ test('an invalid typed date shows an error and does not save', async () => {
   expect(onSave).not.toHaveBeenCalled();
 });
 
+test('on a month last day, tomorrow and first-of-next-month chips select independently', async () => {
+  const onSave = jest.fn();
+  await render(<ContactSheet visible customerName="أحمد" onClose={jest.fn()} onSave={onSave} today="2026-11-30" />);
+  await fireEvent.press(screen.getByText('بكره'));
+  expect(screen.getAllByRole('button', { selected: true })).toHaveLength(1);
+  await fireEvent.press(screen.getByText('أول الشهر الجاي'));
+  expect(screen.getAllByRole('button', { selected: true })).toHaveLength(1);
+  await fireEvent.press(screen.getByRole('button', { name: 'حفظ' }));
+  expect(onSave).toHaveBeenCalledWith({ note: '', promiseDate: '2026-12-01' });
+});
+
 test('a valid typed date is saved', async () => {
   const { ui, onSave } = setup();
   await render(ui);

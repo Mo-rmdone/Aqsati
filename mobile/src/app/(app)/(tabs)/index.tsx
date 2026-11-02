@@ -55,7 +55,11 @@ function amountOf(r: FollowupRow): number {
 function contactLine(r: FollowupRow): string | null {
   const promise = r.promise_date ? `وعد يدفع ${formatDateAr(r.promise_date)}` : null;
   if (r.bucket === 2) {
-    const parts = [`✓ ${kindWord(r.last_contact_kind)}`];
+    const words: string[] = [];
+    if (r.called_today) words.push('اتصلت');
+    if (r.whatsapp_today) words.push('واتساب');
+    if (words.length === 0) words.push(kindWord(r.last_contact_kind));
+    const parts = [`✓ ${words.join(' · ')}`];
     if (r.last_note) parts.push(r.last_note);
     if (promise) parts.push(promise);
     return parts.join(' · ');
@@ -126,7 +130,9 @@ function RowActions({
       />
       {onWhatsapp ? (
         <IconAction compact={compact} label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
-      ) : null}
+      ) : (
+        <Text style={styles.phoneHint}>رقم الموبايل مش صحيح، صلّحه عشان تبعت واتساب</Text>
+      )}
       <IconAction compact={compact} label="ملاحظة" Icon={StickyNote} onPress={onNote} />
       {compact ? (
         <Pressable accessibilityRole="button" onPress={onPay} style={[styles.compact, styles.compactPrimary]}>
@@ -179,7 +185,7 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
   };
 
   const isCalled = (r: FollowupRow) =>
-    called.has(r.customer_id ?? '') || (!!r.contacted_today && r.last_contact_kind === 'call');
+    called.has(r.customer_id ?? '') || !!r.called_today;
 
   const doCall = async (r: FollowupRow) => {
     const id = r.customer_id ?? '';
@@ -252,9 +258,20 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
             },
             {
               key: 'amount',
-              title: 'المتأخر',
+              title: 'المبلغ',
               width: 150,
-              render: (r) => <Money value={amountOf(r)} />,
+              render: (r) => (
+                <View>
+                  <Money value={amountOf(r)} />
+                  <Text style={styles.phone}>
+                    {isOverdue(r)
+                      ? 'متأخر'
+                      : r.next_due_date
+                        ? `القسط الجاي ${formatDateAr(r.next_due_date)}`
+                        : ''}
+                  </Text>
+                </View>
+              ),
             },
             {
               key: 'since',
@@ -420,7 +437,7 @@ export default function Home() {
     <>
       <View style={styles.headingRow}>
         <Text style={styles.heading}>مين لازم أكلمه النهارده</Text>
-        {work.data ? <Text style={styles.count}>{`${needCall} محتاجين مكالمة`}</Text> : null}
+        {work.data && needCall > 0 ? <Text style={styles.count}>{`${needCall} محتاجين مكالمة`}</Text> : null}
       </View>
       {work.isPending ? (
         <ActivityIndicator color={colors.primary} />
@@ -540,6 +557,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
   },
   actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paid },
+  phoneHint: { ...type.body, color: colors.inkMuted, textAlign: 'right', flexBasis: '100%' },
   actionText: { ...type.label, color: colors.brand },
   compactPrimary: { backgroundColor: colors.brand },
   compactText: { ...type.label },
