@@ -8,6 +8,7 @@ class FakeRecognition {
   onresult: ((e: unknown) => void) | null = null;
   onerror: ((e: unknown) => void) | null = null;
   onend: (() => void) | null = null;
+  onstart: (() => void) | null = null;
   start = jest.fn();
   abort = jest.fn();
   constructor() {
@@ -63,6 +64,7 @@ test('silent recognition stops at 10 s with no_speech and aborts', async () => {
   const { promise } = listenOnce();
   const r = FakeRecognition.last!;
   const out = code(promise);
+  r.onstart!();
   jest.advanceTimersByTime(9999);
   expect(r.abort).not.toHaveBeenCalled();
   jest.advanceTimersByTime(1);
@@ -146,6 +148,73 @@ test('speak cancels current, prefers ar voice, sets lang', () => {
   expect(u.text).toBe('أهلا');
   expect(u.lang).toBe('ar-EG');
   expect(u.voice).toEqual({ lang: 'ar-SA', name: 'a' });
+});
+
+test('slow permission prompt: no onstart for 15 s keeps listening; onstart then 10 s silence -> no_speech', async () => {
+  const { promise } = listenOnce();
+  const r = FakeRecognition.last!;
+  const out = code(promise);
+  jest.advanceTimersByTime(15000);
+  expect(r.abort).not.toHaveBeenCalled();
+  r.onstart!();
+  jest.advanceTimersByTime(9999);
+  expect(r.abort).not.toHaveBeenCalled();
+  jest.advanceTimersByTime(1);
+  expect(await out).toBe('no_speech');
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test('onstart never firing falls back to no_speech at 30 s', async () => {
+  const { promise } = listenOnce();
+  const out = code(promise);
+  jest.advanceTimersByTime(30000);
+  expect(await out).toBe('no_speech');
+});
+
+test('audio-capture -> no_mic, language-not-supported -> unsupported', async () => {
+  const a = listenOnce();
+  FakeRecognition.last!.onerror!({ error: 'audio-capture' });
+  expect(await code(a.promise)).toBe('no_mic');
+  const b = listenOnce();
+  FakeRecognition.last!.onerror!({ error: 'language-not-supported' });
+  expect(await code(b.promise)).toBe('unsupported');
+  expect(speechErrorText('no_mic')).toBe('مفيش ميكروفون شغّال على الجهاز ده');
+});
+
+test('speak waits once for voiceschanged when voices are empty', () => {
+  let voices: unknown[] = [];
+  const listeners: Record<string, () => void> = {};
+  const synth = {
+    cancel: jest.fn(),
+    speak: jest.fn(),
+    getVoices: () => voices,
+    addEventListener: (n: string, f: () => void) => {
+      listeners[n] = f;
+    },
+    removeEventListener: jest.fn(),
+  };
+  g.speechSynthesis = synth;
+  g.SpeechSynthesisUtterance = class {
+    lang = '';
+    voice: unknown = null;
+    constructor(public text: string) {}
+  };
+  speak('أهلا');
+  expect(synth.speak).not.toHaveBeenCalled();
+  voices = [{ lang: 'ar-EG' }];
+  listeners.voiceschanged();
+  expect(synth.speak).toHaveBeenCalledTimes(1);
+  jest.advanceTimersByTime(1500);
+  expect(synth.speak).toHaveBeenCalledTimes(1);
+});
+
+test('speak gives up silently after 1 s if voices never appear', () => {
+  const synth = { cancel: jest.fn(), speak: jest.fn(), getVoices: () => [], addEventListener: jest.fn(), removeEventListener: jest.fn() };
+  g.speechSynthesis = synth;
+  g.SpeechSynthesisUtterance = class {};
+  speak('x');
+  jest.advanceTimersByTime(1000);
+  expect(synth.speak).not.toHaveBeenCalled();
 });
 
 test('speak is a no-op without an ar voice or synthesis', () => {

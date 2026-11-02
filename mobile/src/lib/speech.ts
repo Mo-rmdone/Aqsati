@@ -1,4 +1,4 @@
-export type SpeechErrorCode = 'unsupported' | 'permission' | 'no_speech' | 'network' | 'cancelled';
+export type SpeechErrorCode = 'unsupported' | 'no_mic' | 'permission' | 'no_speech' | 'network' | 'cancelled';
 
 export class SpeechError extends Error {
   code: SpeechErrorCode;
@@ -11,6 +11,7 @@ export class SpeechError extends Error {
 
 const TEXT: Record<SpeechErrorCode, string> = {
   unsupported: 'الميكروفون مش مدعوم في المتصفح ده — جرّب Chrome',
+  no_mic: 'مفيش ميكروفون شغّال على الجهاز ده',
   permission: 'محتاج إذن الميكروفون',
   no_speech: 'مسمعتش حاجة، جرّب تاني',
   network: 'النت ضعيف، جرّب تاني',
@@ -28,6 +29,7 @@ interface RecognitionLike {
   onresult: ((e: any) => void) | null;
   onerror: ((e: any) => void) | null;
   onend: (() => void) | null;
+  onstart: (() => void) | null;
   start(): void;
   abort(): void;
 }
@@ -41,6 +43,7 @@ export function speechSupported(): boolean {
   return typeof ctor() === 'function';
 }
 
+const START_FALLBACK_MS = 30_000;
 let activeCancel: (() => void) | null = null;
 
 export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promise<string>; cancel: () => void } {
@@ -65,7 +68,7 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
       if (timer) clearTimeout(timer);
       if (activeCancel === cancel) activeCancel = null;
       if (rec) {
-        rec.onresult = rec.onerror = rec.onend = null;
+        rec.onresult = rec.onerror = rec.onend = rec.onstart = null;
         try {
           rec.abort();
         } catch {
@@ -90,13 +93,22 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
       };
       rec.onerror = (e) => {
         const err = e?.error;
-        if (err === 'not-allowed' || err === 'service-not-allowed') fail('permission');
+        if (err === 'audio-capture') fail('no_mic');
+        else if (err === 'language-not-supported') fail('unsupported');
+        else if (err === 'not-allowed' || err === 'service-not-allowed') fail('permission');
         else if (err === 'no-speech') fail('no_speech');
         else if (err === 'aborted') fail('cancelled');
         else fail('network');
       };
       rec.onend = () => fail('no_speech');
-      timer = setTimeout(() => fail('no_speech'), timeoutMs);
+      // The mic permission prompt may be slow: the real timeout starts at onstart;
+      // this longer fallback only covers onstart never firing.
+      timer = setTimeout(() => fail('no_speech'), Math.max(timeoutMs, START_FALLBACK_MS));
+      rec.onstart = () => {
+        if (done) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => fail('no_speech'), timeoutMs);
+      };
       rec.start();
     } catch {
       fail('network');
@@ -107,16 +119,37 @@ export function listenOnce(opts: { timeoutMs?: number } = {}): { promise: Promis
   return { promise, cancel: () => cancel() };
 }
 
-export function speak(text: string): void {
-  const g = globalThis as any;
-  const synth = g.speechSynthesis;
-  const Utter = g.SpeechSynthesisUtterance;
-  if (!synth || !Utter) return;
-  const voice = (synth.getVoices?.() ?? []).find((v: { lang?: string }) => v.lang?.toLowerCase().startsWith('ar'));
-  if (!voice) return;
+const isAr = (v: { lang?: string }) => v.lang?.toLowerCase().startsWith('ar');
+
+function say(synth: any, Utter: any, voice: unknown, text: string) {
   synth.cancel();
   const u = new Utter(text);
   u.lang = 'ar-EG';
   u.voice = voice;
   synth.speak(u);
+}
+
+export function speak(text: string): void {
+  const g = globalThis as any;
+  const synth = g.speechSynthesis;
+  const Utter = g.SpeechSynthesisUtterance;
+  if (!synth || !Utter) return;
+  const voices = synth.getVoices?.() ?? [];
+  if (voices.length === 0 && typeof synth.addEventListener === 'function') {
+    // Chrome loads voices lazily: wait once (max 1 s) for them.
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      synth.removeEventListener?.('voiceschanged', finish);
+      const v = (synth.getVoices?.() ?? []).find(isAr);
+      if (v) say(synth, Utter, v, text);
+    };
+    const t = setTimeout(finish, 1000);
+    synth.addEventListener('voiceschanged', finish);
+    return;
+  }
+  const voice = voices.find(isAr);
+  if (voice) say(synth, Utter, voice, text);
 }
