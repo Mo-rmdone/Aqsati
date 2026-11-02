@@ -39,10 +39,10 @@ function StatusCell({ status }: { status: string | null }) {
   return <StatusChip label={chip.label} tone={chip.tone} />;
 }
 
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
+function Group({ label, inline, children }: { label: string; inline: boolean; children: React.ReactNode }) {
   return (
-    <View style={styles.group}>
-      <Text style={styles.groupLabel}>{label}</Text>
+    <View style={inline ? styles.groupInline : styles.group}>
+      <Text style={inline ? styles.groupLabelInline : styles.groupLabel}>{label}</Text>
       {children}
     </View>
   );
@@ -99,15 +99,17 @@ export default function Invoices() {
           style={styles.searchInput}
         />
       </View>
-      <Group label="التاريخ">
-        <FilterChips options={DATES} value={date} onChange={setDate} />
-      </Group>
-      <Group label="النوع">
-        <FilterChips options={TYPES} value={saleType} onChange={setSaleType} />
-      </Group>
-      <Group label="الحالة">
-        <FilterChips options={STATUSES} value={status} onChange={setStatus} />
-      </Group>
+      <View style={desktop ? styles.filtersRow : styles.filtersStack}>
+        <Group label="التاريخ" inline={desktop}>
+          <FilterChips options={DATES} value={date} onChange={setDate} />
+        </Group>
+        <Group label="النوع" inline={desktop}>
+          <FilterChips options={TYPES} value={saleType} onChange={setSaleType} />
+        </Group>
+        <Group label="الحالة" inline={desktop}>
+          <FilterChips options={STATUSES} value={status} onChange={setStatus} />
+        </Group>
+      </View>
       {isLoading ? <ActivityIndicator color={colors.brand} /> : null}
       {error ? (
         <View style={styles.center}>
@@ -187,6 +189,11 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, ...type.body, color: colors.ink, textAlign: 'right', minHeight: size.tapLg },
   group: { gap: space[1] },
   groupLabel: { ...type.label, color: colors.inkMuted, textAlign: 'right' },
+  // Desktop: the three groups sit on one wrapping row, each label beside its chips.
+  filtersRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space[8], rowGap: space[3] },
+  filtersStack: { gap: space[4] },
+  groupInline: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  groupLabelInline: { ...type.helper, color: colors.inkMuted },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

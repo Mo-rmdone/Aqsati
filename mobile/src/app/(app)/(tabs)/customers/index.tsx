@@ -88,19 +88,21 @@ export default function Customers() {
             : `${total} عميل`}
         </Text>
       ) : null}
-      <View style={styles.search}>
-        <Search size={size.iconSm} color={colors.inkMuted} />
-        <TextInput
-          accessibilityLabel="بحث بالاسم أو الموبايل"
-          placeholder="ابحث بالاسم أو الموبايل"
-          placeholderTextColor={colors.inkMuted}
-          value={search}
-          onChangeText={setSearch}
-          autoCorrect={false}
-          style={styles.searchInput}
-        />
+      <View style={desktop ? styles.searchRow : styles.searchStack}>
+        <View style={[styles.search, desktop && styles.searchDesktop]}>
+          <Search size={size.iconSm} color={colors.inkMuted} />
+          <TextInput
+            accessibilityLabel="بحث بالاسم أو الموبايل"
+            placeholder="ابحث بالاسم أو الموبايل"
+            placeholderTextColor={colors.inkMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+            style={styles.searchInput}
+          />
+        </View>
+        <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
       </View>
-      <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
       <Text style={styles.hint}>العميل الجديد بيتضاف من جوه الفاتورة.</Text>
       {desktop ? null : importButton}
       {isLoading ? <ActivityIndicator color={colors.brand} /> : null}
@@ -157,6 +159,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space[4],
   },
+  // Desktop: search and filters share one row, as in the approved design.
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
+  searchStack: { gap: space[4] },
+  searchDesktop: { flex: 1, minWidth: size.sideColumn },
   searchInput: { flex: 1, ...type.body, color: colors.ink, textAlign: 'right', minHeight: size.tapLg },
   row: {
     flexDirection: 'row',

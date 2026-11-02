@@ -259,7 +259,7 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
             {
               key: 'amount',
               title: 'المبلغ',
-              width: 150,
+              width: 140,
               render: (r) => (
                 <View>
                   <Money value={amountOf(r)} />
@@ -275,22 +275,19 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
             },
             {
               key: 'since',
-              title: 'من',
-              width: 150,
-              render: (r) => <Text style={styles.cellText}>{sinceText(r)}</Text>,
-            },
-            {
-              key: 'status',
               title: 'الحالة',
-              width: 130,
+              width: 140,
               render: (r) => (
-                <StatusChip label={isOverdue(r) ? 'متأخر' : 'مستحق'} tone={isOverdue(r) ? 'overdue' : 'due'} />
+                <View style={styles.followCell}>
+                  <StatusChip label={isOverdue(r) ? 'متأخر' : 'مستحق'} tone={isOverdue(r) ? 'overdue' : 'due'} />
+                  <Text style={styles.phone}>{sinceText(r)}</Text>
+                </View>
               ),
             },
             {
               key: 'follow',
               title: 'المتابعة',
-              width: 520,
+              width: 300,
               render: (r) => {
                 const line = contactLine(r);
                 return (

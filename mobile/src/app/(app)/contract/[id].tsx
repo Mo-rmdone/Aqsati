@@ -168,23 +168,28 @@ export default function ContractDetail() {
       <KeyValue label="السعر">
         <Money value={Number(contract.total_price)} style={styles.small} />
       </KeyValue>
-      <KeyValue label="المقدم">
-        <Money value={Number(contract.down_payment)} style={styles.small} />
-      </KeyValue>
-      <KeyValue label="الفايدة">
-        {interestText(Number(contract.interest_rate), contract.num_installments, contract.interest_method)}
-      </KeyValue>
-      <KeyValue label="أول قسط">{installments[0] ? formatDateAr(installments[0].due_date) : '—'}</KeyValue>
-      <KeyValue label="الإجمالي بالفايدة">
-        <Money value={total} style={styles.small} />
-      </KeyValue>
+      {contract.sale_type === 'cash' ? (
+        <KeyValue label="نوع البيع">كاش</KeyValue>
+      ) : (
+        <>
+          <KeyValue label="المقدم">
+            <Money value={Number(contract.down_payment)} style={styles.small} />
+          </KeyValue>
+          <KeyValue label="الفايدة">
+            {interestText(Number(contract.interest_rate), contract.num_installments, contract.interest_method)}
+          </KeyValue>
+          <KeyValue label="أول قسط">{installments[0] ? formatDateAr(installments[0].due_date) : '—'}</KeyValue>
+          <KeyValue label="الإجمالي بالفايدة">
+            <Money value={total} style={styles.small} />
+          </KeyValue>
+        </>
+      )}
     </View>
   );
 
   return (
     <Screen title={contract.product_desc ?? `فاتورة #${contract.contract_no}`} onBack={goBack} actions={payButton}>
       <View style={styles.meta}>
-        <Text style={styles.crumb}>الفواتير › #{contract.contract_no}</Text>
         <StatusChip label={chip.label} tone={chip.tone} />
         {contract.interest_method === 'imported' ? <StatusChip label="مستورد" tone="unknown" /> : null}
       </View>
@@ -240,7 +245,6 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
-  crumb: { ...type.body, color: colors.inkMuted },
   sub: { ...type.body, color: colors.inkMuted },
   tilesRow: { flexDirection: 'row', gap: space[4] },
   tilesCol: { gap: space[3] },

@@ -14,7 +14,13 @@ export function FilterChips<V extends string>({
   onChange: (value: V) => void;
 }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    // flexGrow 0: inside a vertical ScrollView a horizontal one otherwise stretches to fill the free height.
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       {options.map((o) => {
         const selected = o.value === value;
         return (
@@ -36,6 +42,7 @@ export function FilterChips<V extends string>({
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0 },
   row: { gap: space[2], alignItems: 'center' },
   chip: {
     minHeight: size.tapMin,

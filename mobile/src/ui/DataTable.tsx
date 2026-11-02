@@ -26,7 +26,12 @@ export function DataTable<T>({
   const minWidth = columns.reduce((sum, c) => sum + (c.width ?? DEFAULT_WIDTH), 0);
   return (
     <View style={styles.card}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+      >
         <View style={{ minWidth, flexGrow: 1 }}>
           <View style={styles.head}>
             {columns.map((c) => (
@@ -72,6 +77,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     overflow: 'hidden',
   },
+  scrollView: { flexGrow: 0 },
   scroll: { flexGrow: 1 },
   head: { flexDirection: 'row', backgroundColor: colors.surfaceSunken, minHeight: size.tapMin, alignItems: 'center' },
   headText: { color: colors.inkMuted, textAlign: 'right' },
