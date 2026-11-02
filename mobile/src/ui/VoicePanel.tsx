@@ -118,7 +118,14 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
     const id = run.current;
     setText('');
     setPhase({ name: 'listening' });
-    const { promise, cancel } = listenOnce();
+    let session: ReturnType<typeof listenOnce>;
+    try {
+      session = listenOnce();
+    } catch {
+      setPhase({ name: 'message', text: GENERIC_ERROR });
+      return;
+    }
+    const { promise, cancel } = session;
     cancelListen.current = cancel;
     promise.then(
       (heard) => {
@@ -232,9 +239,12 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
       break;
     case 'thinking':
       body = (
-        <View style={styles.idle}>
-          <ActivityIndicator color={colors.brand} />
-          <Text style={styles.caption}>بفكّر…</Text>
+        <View style={styles.stack}>
+          <View style={styles.idle}>
+            <ActivityIndicator color={colors.brand} />
+            <Text style={styles.caption}>بفكّر…</Text>
+          </View>
+          <Button title="إلغاء" variant="secondary" onPress={cancel} />
         </View>
       );
       break;

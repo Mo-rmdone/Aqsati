@@ -165,6 +165,72 @@ test('cancel while listening and unmount cancel the active listen', async () => 
   expect(cancel).toHaveBeenCalledTimes(2);
 });
 
+function deferred<T>() {
+  let resolveFn!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolveFn = r));
+  return { promise, resolve: resolveFn };
+}
+
+test('intent resolved after cancel is ignored', async () => {
+  await toHeard();
+  const d = deferred<unknown>();
+  mockMutate.mockReturnValue(d.promise);
+  resolve.mockResolvedValue({ kind: 'navigate', path: '/x', say: 'هيا' });
+  await fireEvent.press(screen.getByText('تمام'));
+  await screen.findByText('بفكّر…');
+  await fireEvent.press(screen.getByText('إلغاء'));
+  d.resolve(INTENT);
+  await act(async () => {});
+  expect(screen.getByText('اسأل أو سجّل بصوتك')).toBeTruthy();
+  expect(onNavigate).not.toHaveBeenCalled();
+  expect(speak).not.toHaveBeenCalled();
+});
+
+test('resolveIntent resolved after unmount does nothing', async () => {
+  hear('رصيد');
+  const r = await render(<VoicePanel onNavigate={onNavigate} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'اسأل بصوتك' }));
+  await screen.findByText('سمعتك بتقول:');
+  const d = deferred<unknown>();
+  resolve.mockReturnValue(d.promise);
+  await fireEvent.press(screen.getByText('تمام'));
+  await act(async () => {});
+  await r.unmount();
+  d.resolve({ kind: 'navigate', path: '/x', say: 'هيا' });
+  await act(async () => {});
+  expect(onNavigate).not.toHaveBeenCalled();
+  expect(speak).not.toHaveBeenCalled();
+});
+
+test('a second request supersedes the first', async () => {
+  await toHeard('أول');
+  const first = deferred<unknown>();
+  mockMutate.mockReturnValueOnce(first.promise);
+  resolve.mockImplementation(async (i: any) => ({ kind: 'message', text: `نتيجة ${i.n}` }));
+  await fireEvent.press(screen.getByText('تمام'));
+  await screen.findByText('بفكّر…');
+  await fireEvent.press(screen.getByText('إلغاء'));
+  hear('تاني');
+  await fireEvent.press(screen.getByRole('button', { name: 'اسأل بصوتك' }));
+  await screen.findByText('سمعتك بتقول:');
+  mockMutate.mockResolvedValueOnce({ n: 2 });
+  await fireEvent.press(screen.getByText('تمام'));
+  await screen.findByText('نتيجة 2');
+  first.resolve({ n: 1 });
+  await act(async () => {});
+  expect(screen.getByText('نتيجة 2')).toBeTruthy();
+  expect(screen.queryByText('نتيجة 1')).toBeNull();
+});
+
+test('a synchronous listenOnce throw shows the generic message', async () => {
+  listen.mockImplementation(() => {
+    throw new Error('boom');
+  });
+  await render(<VoicePanel onNavigate={onNavigate} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'اسأل بصوتك' }));
+  expect(screen.getByText('حصلت مشكلة، جرّب تاني')).toBeTruthy();
+});
+
 test('unsupported disables the mic and shows the copy', async () => {
   (speechSupported as jest.Mock).mockReturnValue(false);
   await render(<VoicePanel onNavigate={onNavigate} />);
