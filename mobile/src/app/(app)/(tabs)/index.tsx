@@ -1,20 +1,25 @@
 import { useRouter } from 'expo-router';
-import { Banknote, FilePlus, Search } from 'lucide-react-native';
-import { useState } from 'react';
+import {
+  Banknote,
+  CheckSquare,
+  FilePlus,
+  MessageCircle,
+  Search,
+  Square,
+  StickyNote,
+  type LucideIcon,
+} from 'lucide-react-native';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import {
-  activityText,
-  useCollectionsKpi,
-  useRecentActivity,
-  useWorklist,
-  type ActivityRow,
-  type WorklistRow,
-} from '../../../api/dashboard';
+import { activityText, useCollectionsKpi, useRecentActivity, type ActivityRow } from '../../../api/dashboard';
+import { useFollowup, useLogContact, type ContactKind, type FollowupRow } from '../../../api/followup';
 import { useAuth } from '../../../lib/auth';
-import { formatDateAr, headerDateAr } from '../../../lib/date';
-import { reminderMessage, whatsappLink } from '../../../lib/whatsapp';
+import { formatDateAr, headerDateAr, todayISO } from '../../../lib/date';
+import { newId } from '../../../lib/ids';
+import { followupReminder, whatsappLink } from '../../../lib/whatsapp';
 import { Button } from '../../../ui/Button';
+import { ContactSheet } from '../../../ui/ContactSheet';
 import { DataTable } from '../../../ui/DataTable';
 import { useIsDesktop } from '../../../ui/layout';
 import { Money } from '../../../ui/Money';
@@ -23,138 +28,288 @@ import { StatusChip } from '../../../ui/StatusChip';
 import { Tile } from '../../../ui/Tile';
 import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
 
-function lateText(days: number | null, due: string | null): string {
-  if (days !== null && days > 0) return `متأخر ${days} يوم (من ${formatDateAr(due ?? '')})`;
-  if (days === 0) return 'مستحق النهارده';
-  return due ? `يستحق ${formatDateAr(due)}` : '';
+function isOverdue(r: FollowupRow): boolean {
+  return r.status === 'late';
 }
 
-function linkFor(row: WorklistRow, shopName: string): string | null {
-  if (!row.phone) return null;
-  return whatsappLink(
-    row.phone,
-    reminderMessage({
-      customer: row.name ?? '',
-      amount: row.amount ?? 0,
-      dueDate: formatDateAr(row.due_date ?? ''),
-      merchant: shopName,
-    }),
-  );
+function payPath(r: FollowupRow): string {
+  return `/payment/new?customerId=${r.customer_id}`;
 }
 
-function payPath(row: WorklistRow): string {
-  return `/payment/new?customerId=${row.customer_id}&contractId=${row.contract_id}`;
+function kindWord(kind: string | null): string {
+  if (kind === 'call') return 'اتصلت';
+  if (kind === 'whatsapp') return 'واتساب';
+  return 'ملاحظة';
 }
 
-function WorkRow({ row, shopName }: { row: WorklistRow; shopName: string }) {
-  const router = useRouter();
-  const link = linkFor(row, shopName);
-  const overdue = (row.days_late ?? 0) > 0;
-  return (
-    <View style={[styles.row, overdue && styles.rowLate]}>
-      <View style={styles.rowTop}>
-        <Text style={styles.name}>{row.name ?? ''}</Text>
-        <Money value={row.amount ?? 0} />
-      </View>
-      <StatusChip label={lateText(row.days_late, row.due_date)} tone={overdue ? 'overdue' : 'due'} />
-      <View style={styles.actions}>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="واتساب"
-            variant="secondary"
-            disabled={link === null}
-            onPress={() => {
-              if (link) void Linking.openURL(link);
-            }}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="تسجيل دفعة" onPress={() => router.push(payPath(row))} />
-        </View>
-      </View>
-      {link === null ? <Text style={styles.hint}>رقم الموبايل مش صحيح، صلّحه عشان تبعت واتساب</Text> : null}
-    </View>
-  );
+function sinceText(r: FollowupRow): string {
+  if ((r.days_late ?? 0) > 0) return `متأخر ${r.days_late} يوم`;
+  return r.next_due_date ? `يستحق ${formatDateAr(r.next_due_date)}` : '';
 }
 
-function CompactButton({
-  title,
+function amountOf(r: FollowupRow): number {
+  return (r.overdue_count ?? 0) > 0 ? (r.overdue_amount ?? 0) : (r.next_due_amount ?? 0);
+}
+
+/** The status line under a row: contacted (bucket 2) or promised (bucket 1). Null for bucket 0. */
+function contactLine(r: FollowupRow): string | null {
+  const promise = r.promise_date ? `وعد يدفع ${formatDateAr(r.promise_date)}` : null;
+  if (r.bucket === 2) {
+    const parts = [`✓ ${kindWord(r.last_contact_kind)}`];
+    if (r.last_note) parts.push(r.last_note);
+    if (promise) parts.push(promise);
+    return parts.join(' · ');
+  }
+  return r.bucket === 1 ? promise : null;
+}
+
+function IconAction({
+  label,
+  Icon,
   onPress,
-  secondary,
+  disabled,
+  compact,
+  wide,
 }: {
-  title: string;
+  label: string;
+  Icon: LucideIcon;
   onPress: () => void;
-  secondary?: boolean;
+  disabled?: boolean;
+  compact: boolean;
+  wide?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={[styles.compact, secondary ? styles.compactSecondary : styles.compactPrimary]}
+      style={[
+        compact ? styles.compact : styles.phoneAction,
+        wide ? styles.wideAction : styles.iconAction,
+        disabled && styles.actionDone,
+      ]}
     >
-      <Text style={[styles.compactText, { color: secondary ? colors.brand : colors.onBrand }]}>{title}</Text>
+      <Icon size={size.iconSm} color={colors.brand} />
+      {wide ? <Text style={styles.actionText}>{label}</Text> : null}
     </Pressable>
   );
 }
 
-function WorkTable({ rows, shopName }: { rows: WorklistRow[]; shopName: string }) {
-  const router = useRouter();
+function RowActions({
+  row,
+  compact,
+  called,
+  onCall,
+  onWhatsapp,
+  onNote,
+  onPay,
+}: {
+  row: FollowupRow;
+  compact: boolean;
+  called: boolean;
+  onCall: () => void;
+  onWhatsapp: (() => void) | null;
+  onNote: () => void;
+  onPay: () => void;
+}) {
   return (
-    <DataTable
-      rows={rows}
-      keyOf={(r) => r.installment_id ?? ''}
-      empty={<Text style={styles.empty}>مفيش أقساط مستحقة دلوقتي</Text>}
-      columns={[
-        {
-          key: 'customer',
-          title: 'العميل',
-          render: (r) => (
-            <View>
-              <Text style={styles.cellName}>{r.name ?? ''}</Text>
-              <Text style={styles.phone}>{r.phone ?? ''}</Text>
-            </View>
-          ),
-        },
-        {
-          key: 'late',
-          title: 'المتأخر',
-          width: 200,
-          render: (r) => <Text style={styles.cellText}>{lateText(r.days_late, r.due_date)}</Text>,
-        },
-        { key: 'amount', title: 'من', width: 150, render: (r) => <Money value={r.amount ?? 0} /> },
-        {
-          key: 'status',
-          title: 'الحالة',
-          width: 190,
-          render: (r) => {
-            const overdue = (r.days_late ?? 0) > 0;
-            return <StatusChip label={overdue ? 'متأخر' : 'مستحق'} tone={overdue ? 'overdue' : 'due'} />;
-          },
-        },
-        {
-          key: 'actions',
-          title: '',
-          width: 270,
-          render: (r) => {
-            const link = linkFor(r, shopName);
-            return (
-              <View style={styles.actions}>
-                {link ? (
-                  <CompactButton
-                    title="واتساب"
-                    secondary
-                    onPress={() => {
-                      void Linking.openURL(link);
-                    }}
-                  />
-                ) : null}
-                <CompactButton title="تسجيل دفعة" onPress={() => router.push(payPath(r))} />
-              </View>
-            );
-          },
-        },
-      ]}
+    <View style={styles.actions}>
+      <IconAction
+        compact={compact}
+        wide
+        label={called ? '✓ اتصلت' : 'اتصلت'}
+        Icon={called ? CheckSquare : Square}
+        disabled={called}
+        onPress={onCall}
+      />
+      {onWhatsapp ? (
+        <IconAction compact={compact} label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
+      ) : null}
+      <IconAction compact={compact} label="ملاحظة" Icon={StickyNote} onPress={onNote} />
+      {compact ? (
+        <Pressable accessibilityRole="button" onPress={onPay} style={[styles.compact, styles.compactPrimary]}>
+          <Text style={[styles.compactText, { color: colors.onBrand }]}>تسجيل دفعة</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.flex}>
+          <Button title="تسجيل دفعة" onPress={onPay} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: string }) {
+  const router = useRouter();
+  const desktop = useIsDesktop();
+  const log = useLogContact();
+  // One pending id per (customer, kind); reused until that mutation succeeds so a retry/double press is idempotent.
+  const pending = useRef(new Map<string, string>());
+  const [called, setCalled] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [noteFor, setNoteFor] = useState<FollowupRow | null>(null);
+
+  const send = async (
+    customerId: string,
+    kind: ContactKind,
+    extra?: { note?: string; promiseDate?: string },
+  ): Promise<boolean> => {
+    const key = `${customerId}:${kind}`;
+    let id = pending.current.get(key);
+    if (!id) {
+      id = newId();
+      pending.current.set(key, id);
+    }
+    try {
+      await log.mutateAsync({ id, customerId, kind, ...extra });
+      pending.current.delete(key);
+      setErrors((e) => ({ ...e, [customerId]: '' }));
+      return true;
+    } catch {
+      setErrors((e) => ({ ...e, [customerId]: 'مقدرتش أسجّل المتابعة، جرّب تاني' }));
+      return false;
+    }
+  };
+
+  const isCalled = (r: FollowupRow) =>
+    called.has(r.customer_id ?? '') || (!!r.contacted_today && r.last_contact_kind === 'call');
+
+  const doCall = async (r: FollowupRow) => {
+    const id = r.customer_id ?? '';
+    if (await send(id, 'call')) setCalled((s) => new Set(s).add(id));
+  };
+
+  const linkOf = (r: FollowupRow): string | null =>
+    r.phone ? whatsappLink(r.phone, followupReminder(r, shopName)) : null;
+
+  const doWhatsapp = async (r: FollowupRow, link: string) => {
+    // Log first, but never block the chat on a logging failure.
+    await send(r.customer_id ?? '', 'whatsapp');
+    void Linking.openURL(link);
+  };
+
+  const actionsFor = (r: FollowupRow, compact: boolean) => {
+    const link = linkOf(r);
+    return (
+      <RowActions
+        row={r}
+        compact={compact}
+        called={isCalled(r)}
+        onCall={() => void doCall(r)}
+        onWhatsapp={link ? () => void doWhatsapp(r, link) : null}
+        onNote={() => setNoteFor(r)}
+        onPay={() => router.push(payPath(r))}
+      />
+    );
+  };
+
+  const sheet = (
+    <ContactSheet
+      visible={noteFor !== null}
+      customerName={noteFor?.name ?? ''}
+      today={todayISO()}
+      onClose={() => setNoteFor(null)}
+      onSave={({ note, promiseDate }) => {
+        const target = noteFor;
+        setNoteFor(null);
+        if (target?.customer_id) void send(target.customer_id, 'note', { note, promiseDate });
+      }}
     />
+  );
+
+  if (rows.length === 0) {
+    return <Text style={styles.empty}>مفيش حد محتاج متابعة دلوقتي</Text>;
+  }
+
+  if (desktop) {
+    return (
+      <>
+        <DataTable
+          rows={rows}
+          keyOf={(r) => r.customer_id ?? ''}
+          columns={[
+            {
+              key: 'customer',
+              title: 'العميل',
+              render: (r) => (
+                <View style={r.bucket === 2 && styles.dim}>
+                  <Text style={styles.cellName}>{r.name ?? ''}</Text>
+                  <Text style={styles.phone}>{r.phone ?? ''}</Text>
+                </View>
+              ),
+            },
+            {
+              key: 'amount',
+              title: 'المتأخر',
+              width: 150,
+              render: (r) => <Money value={amountOf(r)} />,
+            },
+            {
+              key: 'since',
+              title: 'من',
+              width: 150,
+              render: (r) => <Text style={styles.cellText}>{sinceText(r)}</Text>,
+            },
+            {
+              key: 'status',
+              title: 'الحالة',
+              width: 130,
+              render: (r) => (
+                <StatusChip label={isOverdue(r) ? 'متأخر' : 'مستحق'} tone={isOverdue(r) ? 'overdue' : 'due'} />
+              ),
+            },
+            {
+              key: 'follow',
+              title: 'المتابعة',
+              width: 520,
+              render: (r) => {
+                const line = contactLine(r);
+                return (
+                  <View style={styles.followCell}>
+                    {line ? <Text style={[styles.contactLine, r.bucket === 2 && styles.dimText]}>{line}</Text> : null}
+                    {actionsFor(r, true)}
+                    {errors[r.customer_id ?? ''] ? (
+                      <Text style={styles.error}>{errors[r.customer_id ?? '']}</Text>
+                    ) : null}
+                  </View>
+                );
+              },
+            },
+          ]}
+        />
+        {sheet}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {rows.map((r) => {
+        const line = contactLine(r);
+        const dim = r.bucket === 2;
+        return (
+          <View
+            key={r.customer_id}
+            style={[styles.row, isOverdue(r) && styles.rowLate, dim && styles.dim]}
+          >
+            <View style={styles.rowTop}>
+              <Text style={[styles.name, dim && styles.dimText]}>{r.name ?? ''}</Text>
+              <Money value={amountOf(r)} />
+            </View>
+            <StatusChip
+              label={isOverdue(r) ? `متأخر ${r.days_late ?? 0} يوم` : sinceText(r) || 'مستحق'}
+              tone={isOverdue(r) ? 'overdue' : 'due'}
+            />
+            {line ? <Text style={[styles.contactLine, dim && styles.dimText]}>{line}</Text> : null}
+            {actionsFor(r, false)}
+            {errors[r.customer_id ?? ''] ? <Text style={styles.error}>{errors[r.customer_id ?? '']}</Text> : null}
+          </View>
+        );
+      })}
+      {sheet}
+    </>
   );
 }
 
@@ -222,7 +377,7 @@ export default function Home() {
   const desktop = useIsDesktop();
   const { shopName } = useAuth();
   const kpi = useCollectionsKpi();
-  const work = useWorklist();
+  const work = useFollowup();
 
   const search = (term: string) =>
     router.push(term ? `/customers?q=${encodeURIComponent(term)}` : '/customers');
@@ -249,19 +404,20 @@ export default function Home() {
     </View>
   );
 
+  const needCall = (work.data ?? []).filter((r) => r.bucket === 0).length;
+
   const worklist = (
     <>
-      <Text style={styles.heading}>مين لازم أكلمه النهارده</Text>
+      <View style={styles.headingRow}>
+        <Text style={styles.heading}>مين لازم أكلمه النهارده</Text>
+        {work.data ? <Text style={styles.count}>{`${needCall} محتاجين مكالمة`}</Text> : null}
+      </View>
       {work.isPending ? (
         <ActivityIndicator color={colors.primary} />
       ) : work.isError ? (
         <Text style={styles.error}>تعذّر تحميل القائمة</Text>
-      ) : desktop ? (
-        <WorkTable rows={work.data} shopName={shopName ?? ''} />
-      ) : work.data.length === 0 ? (
-        <Text style={styles.empty}>مفيش أقساط مستحقة دلوقتي</Text>
       ) : (
-        work.data.map((r) => <WorkRow key={r.installment_id} row={r} shopName={shopName ?? ''} />)
+        <FollowupList rows={work.data} shopName={shopName ?? ''} />
       )}
     </>
   );
@@ -317,6 +473,14 @@ const styles = StyleSheet.create({
   main: { flex: 1, gap: space[4] },
   side: { width: size.sideColumn },
   heading: { ...type.title3, color: colors.ink, textAlign: 'right', marginTop: space[2] },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[3],
+    flexWrap: 'wrap',
+  },
+  count: { ...type.label, color: colors.overdue, textAlign: 'right' },
   row: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -330,16 +494,45 @@ const styles = StyleSheet.create({
   rowLate: { borderStartWidth: 4, borderStartColor: colors.overdue },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
   name: { ...type.title3, color: colors.ink, flexShrink: 1 },
-  actions: { flexDirection: 'row', gap: space[2] },
+  dim: { opacity: 0.6 },
+  dimText: { color: colors.inkMuted },
+  contactLine: { ...type.body, color: colors.paid, textAlign: 'right' },
+  followCell: { gap: space[2] },
+  flex: { flex: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
   compact: {
-    minHeight: size.tapMin,
-    paddingHorizontal: space[4],
+    minHeight: size.tapMin - space[2],
+    paddingHorizontal: space[3],
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: space[1],
   },
+  phoneAction: {
+    minHeight: size.tapMin,
+    paddingHorizontal: space[3],
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: space[1],
+  },
+  iconAction: {
+    minWidth: size.tapMin,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+  },
+  wideAction: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    paddingHorizontal: space[4],
+  },
+  actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paid },
+  actionText: { ...type.label, color: colors.brand },
   compactPrimary: { backgroundColor: colors.brand },
-  compactSecondary: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.brand },
   compactText: { ...type.label },
   cellName: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },
   cellText: { ...type.body, color: colors.ink, textAlign: 'right' },
@@ -363,7 +556,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hint: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
   empty: { ...type.body, color: colors.inkMuted, textAlign: 'center', paddingVertical: space[6] },
   error: { ...type.body, color: colors.error, textAlign: 'center' },
 });
