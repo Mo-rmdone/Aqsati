@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 
@@ -41,6 +41,7 @@ export default function Settings() {
   const router = useRouter();
   const desktop = useIsDesktop();
   const qc = useQueryClient();
+  const { saved: savedParam } = useLocalSearchParams<{ saved?: string }>();
   const { profile, signOut } = useAuth();
   const owner = profile?.role === 'owner';
   const tenantId = profile?.tenant_id ?? null;
@@ -143,6 +144,7 @@ export default function Settings() {
   return (
     <Screen title="الإعدادات">
       <View style={[styles.column, desktop && styles.columnDesktop]}>
+        {savedParam === 'password' ? <Text style={styles.ok}>اتغيّرت كلمة المرور</Text> : null}
         <SettingsSection title="بيانات المحل">
           <View style={styles.logoRow}>
             <View style={styles.logoBox}>
@@ -242,7 +244,7 @@ export default function Settings() {
             <Text style={styles.label}>المستخدم</Text>
             <Text style={styles.value}>{profile?.full_name ?? '—'}</Text>
           </View>
-          <Button title="غيّر كلمة المرور" variant="secondary" onPress={() => router.push('/account/password' as never)} />
+          <Button title="غيّر كلمة المرور" variant="secondary" onPress={() => router.push('/account/password')} />
           <Button title="تسجيل الخروج" variant="secondary" onPress={() => void signOut()} />
         </SettingsSection>
       </View>
