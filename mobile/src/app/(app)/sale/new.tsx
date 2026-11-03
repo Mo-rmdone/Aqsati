@@ -30,23 +30,11 @@ import { newId } from '../../../lib/ids';
 import { validateCustomer } from '../../../lib/validation';
 import { formatEGP } from '../../../lib/money';
 import { Button } from '../../../ui/Button';
+import { Chip } from '../../../ui/Chip';
 import { Field } from '../../../ui/Field';
 import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
 import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
-
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.chip, selected && styles.chipOn]}
-    >
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
-  );
-}
 
 function CustomerPicker({
   onPick,
@@ -365,18 +353,6 @@ const styles = StyleSheet.create({
   rowPhone: { ...type.helper, color: colors.inkMuted, writingDirection: 'ltr' },
   link: { ...type.label, color: colors.brand, paddingVertical: space[2] },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  chip: {
-    minHeight: size.tapMin,
-    justifyContent: 'center',
-    paddingHorizontal: space[4],
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.surface,
-  },
-  chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  chipText: { ...type.label, color: colors.ink },
-  chipTextOn: { color: colors.brand },
   preview: {
     backgroundColor: colors.surface,
     borderWidth: 1,
