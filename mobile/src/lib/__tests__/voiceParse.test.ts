@@ -211,3 +211,24 @@ describe('output is already whitelist-valid', () => {
     expect(parseCommand('سيد دفع 99999999999')).toEqual({ type: 'record_payment', customer: 'سيد' });
   });
 });
+
+describe('fix round 1: name and question guards', () => {
+  test.each([
+    ['سيد دفع 500 على الفاتورة', { type: 'record_payment', customer: 'سيد', amount: 500 }],
+    ['سيد دفع 500 على', { type: 'record_payment', customer: 'سيد', amount: 500 }],
+    ['سيد دفع 500 عن', { type: 'record_payment', customer: 'سيد', amount: 500 }],
+    ['سيد علي دفع 500', { type: 'record_payment', customer: 'سيد علي', amount: 500 }],
+    ['سيد دفع الشهر ده 500', { type: 'record_payment', customer: 'سيد', amount: 500 }],
+    ['سيد دفع 500-', { type: 'record_payment', customer: 'سيد' }],
+    ['سيد دفع -500', { type: 'record_payment', customer: 'سيد' }],
+    ['سيد دفع كام', { type: 'ask_balance', customer: 'سيد' }],
+    ['مين دفع النهارده', { type: 'unknown' }],
+    ['هو سيد دفع ولا لأ', { type: 'unknown' }],
+    ['فاتورة لمنى تلاجة', { type: 'create_invoice', customer: 'منى', product: 'تلاجة' }],
+    ['فاتورة لمنى تلاجة بخمسة آلاف', { type: 'create_invoice', customer: 'منى', product: 'تلاجة', price: 5000 }],
+    ['فاتورة منى التلاجة', { type: 'ask_invoice', customer: 'منى', invoice_hint: 'التلاجة' }],
+    ['فاتورة ليلى', { type: 'ask_invoice', customer: 'ليلى' }],
+  ])('%s', (t, expected) => {
+    expect(parseCommand(t)).toEqual(expected);
+  });
+});

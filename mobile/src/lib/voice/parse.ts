@@ -273,7 +273,7 @@ export function parseAmount(words: string): number | undefined {
 
 const FILLER = set('بقولك قولي يا ممكن لو سمحت ياريت عايز عاوز عايزه عاوزه انا');
 const STOP = set(
-  'يا من ل لي لو سمحت ممكن عايز عاوز عايزه عاوزه ياريت اعمل اعملي ده دي دا كده بس النهارده انهارده امبارح دلوقتي كمان ب في كام ايه قول قولي انا بقولك تقريبا حوالي يعني طيب اللي ال',
+  'يا من ل لي لو سمحت ممكن عايز عاوز عايزه عاوزه ياريت اعمل اعملي ده دي دا كده بس النهارده انهارده امبارح دلوقتي كمان ب في كام ايه قول قولي انا بقولك تقريبا حوالي يعني طيب اللي ال الشهر شهر صفر',
 );
 const HONORIFIC = set(
   'الحاج حاج الحاجه حاجه استاذ الاستاذ استاذه الاستاذه معلم المعلم دكتور الدكتور دكتوره الدكتوره الست ست باشا بيه افندم',
@@ -300,6 +300,7 @@ const CREATE_VERBS = set('اعمل اعملي عمل انشئ سجل سجلي ض
 const PAY_VERBS = set('دفع دفعت دفعوا دفعو سدد سددت سددوا جاب جابت جابوا جابو جبت قبضت استلمت اخدت خدت حصلت حصل');
 const REC = set('سجل سجلي ضيف اضف حط حطلي');
 const PAY_NOUNS = set('دفعه دفعات قسط القسط مبلغ فلوس تحصيل');
+const QUESTION = set('كام ايه مين ولا هل');
 const BALANCE_KW = set('عليه عليها عليهم');
 const BALANCE_NOUN = set('حساب رصيد مديونيه مديون الحساب');
 const BALANCE_DROP = set('عليه عليها عليهم كام ايه باقي فاضل حساب رصيد مديونيه مديون بكام الحساب فيه فيها');
@@ -527,7 +528,16 @@ function parsePayment(toks: Tok[], recMode: boolean): Raw {
   }
   const m = takeMethod(ts);
   if (m.method) out.method = m.method;
-  ts = m.ts.filter((t) => !PAY_VERBS.has(t.n) && !REC.has(t.n) && !PAY_NOUNS.has(t.n) && !INV_DROP.has(t.n) && !STOP.has(t.n) && !HONORIFIC.has(t.n));
+  let pre = m.ts;
+  if (!recMode) {
+    // "<name> دفع 500 على [الفاتورة]": a dangling preposition after the verb is not part of the name.
+    const vi = pre.map((t) => PAY_VERBS.has(t.n)).lastIndexOf(true);
+    const hasName = vi > 0 && nameTokens(pre.slice(0, vi), new Set([...PAY_VERBS, ...REC, ...PAY_NOUNS])).length > 0;
+    while (hasName && pre.length - 1 > vi && (pre[pre.length - 1].n === 'علي' || pre[pre.length - 1].n === 'عن' || INV_DROP.has(pre[pre.length - 1].n) || STOP.has(pre[pre.length - 1].n))) {
+      pre = pre.slice(0, -1);
+    }
+  }
+  ts = pre.filter((t) => !PAY_VERBS.has(t.n) && !REC.has(t.n) && !PAY_NOUNS.has(t.n) && !INV_DROP.has(t.n) && !STOP.has(t.n) && !HONORIFIC.has(t.n));
 
   const n = ns(ts);
   const mk = n.findIndex((t, i) => i >= 1 && i < n.length - 1 && (t === 'علي' || t === 'عن'));
@@ -562,7 +572,7 @@ function parseAskInvoice(toks: Tok[]): Raw {
 
 function parseBalance(toks: Tok[]): Raw {
   const keep = toks.filter((t, i) => {
-    if (BALANCE_DROP.has(t.n)) return false;
+    if (BALANCE_DROP.has(t.n) || PAY_VERBS.has(t.n)) return false;
     if (t.n === 'علي' && i > 0 && AFTER_BALANCE_WORD.has(toks[i - 1].n)) return false;
     return true;
   });
@@ -587,11 +597,18 @@ function detect(toks: Tok[]): Raw {
     if (has(MONTH)) return { type: 'ask_totals', period: 'month' };
   }
 
+  // A question about payments ("سيد دفع كام", "مين دفع", "هو سيد دفع ولا لأ") is never a payment to record.
+  if (payVerb && !run && n.some((t) => QUESTION.has(t))) {
+    return n.includes('كام') && !n.some((t) => t === 'مين' || t === 'ولا' || t === 'هل') ? parseBalance(toks) : UNKNOWN;
+  }
+
   // "سجل دفعة ..." / "سجل قسط ..." (the noun must follow the verb directly)
   const recIdx = n.findIndex((t, i) => REC.has(t) && (PAY_NOUNS.has(n[i + 1]) || (n[i + 1] === 'ال' && PAY_NOUNS.has(n[i + 2]))));
   const payTrigger = payVerb || recIdx >= 0;
 
-  if (has(INV_NOUN) && !payVerb && (has(NEW_WORD) || (!payTrigger && (has(CREATE_VERBS) || !!run)))) {
+  // "فاتورة لمنى تلاجة" (the ل prefix) is a new invoice even without "جديدة"
+  const lamForm = INV_NOUN.has(lead) && (n[n.indexOf(lead) + 1] === 'ل' || (n[n.indexOf(lead) + 1]?.length >= 3 && n[n.indexOf(lead) + 1][0] === 'ل' && !LAM_NAMES.has(n[n.indexOf(lead) + 1])));
+  if (has(INV_NOUN) && !payVerb && (has(NEW_WORD) || lamForm || (!payTrigger && (has(CREATE_VERBS) || !!run)))) {
     return parseCreate(toks);
   }
 
@@ -679,7 +696,12 @@ function finalize(r: Raw): Intent {
 
 export function parseCommand(text: string): Intent {
   try {
-    return finalize(detect(prepass(tokenize(text))));
+    const raw = detect(prepass(tokenize(text)));
+    // A minus sign on a number ("-500", "500-") means we cannot trust the amount: drop it.
+    if (/(^|[^\d])-\s?\d|\d\s?-(?!\d)/.test(normalizeDigits(String(text ?? '')))) {
+      for (const k of ['amount', 'price', 'down_payment', 'rate_percent']) delete raw[k];
+    }
+    return finalize(raw);
   } catch {
     return { type: 'unknown' };
   }
