@@ -1,10 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { listenOnce, speak, speechSupported } from '../../lib/speech';
+import { parseCommand } from '../../lib/voice/parse';
 import { resolveIntent } from '../../lib/voice/resolve';
 import { VoicePanel } from '../VoicePanel';
-
-const mockMutate = jest.fn();
 
 jest.mock('../../lib/speech', () => ({
   speechSupported: jest.fn(() => true),
@@ -13,22 +12,14 @@ jest.mock('../../lib/speech', () => ({
   cancelSpeak: jest.fn(),
   speechErrorText: (c: string) => (c === 'unsupported' ? 'مش مدعوم' : c === 'cancelled' ? '' : 'خطأ صوت'),
 }));
-jest.mock('../../api/voice', () => ({
-  useVoiceIntent: () => ({ mutateAsync: mockMutate }),
-  useVoiceData: () => ({}),
-  VoiceError: class VoiceError extends Error {
-    code: string;
-    constructor(code: string) {
-      super(code);
-      this.code = code;
-    }
-  },
-  voiceErrorText: (c: string) => `voice:${c}`,
-}));
+// Understanding is local: the panel must not need the network (useVoiceIntent is gone from the mock).
+jest.mock('../../api/voice', () => ({ useVoiceData: () => ({}) }));
+jest.mock('../../lib/voice/parse', () => ({ parseCommand: jest.fn() }));
 jest.mock('../../lib/voice/resolve', () => ({ resolveIntent: jest.fn() }));
 
 const listen = listenOnce as jest.Mock;
 const resolve = resolveIntent as jest.Mock;
+const parse = parseCommand as jest.Mock;
 const INTENT = { kind: 'balance' };
 
 function hear(text: string) {
@@ -49,11 +40,11 @@ let onNavigate: jest.Mock;
 beforeEach(() => {
   jest.clearAllMocks();
   (speechSupported as jest.Mock).mockReturnValue(true);
-  mockMutate.mockResolvedValue(INTENT);
+  parse.mockReturnValue(INTENT);
   onNavigate = jest.fn();
 });
 
-test('mic press shows the heard text in an editable input; edited text is sent', async () => {
+test('mic press shows the heard text in an editable input; edited text is parsed on the device', async () => {
   await toHeard();
   const input = screen.getByLabelText('اللي سمعته');
   expect(input.props.value).toBe('رصيد أحمد');
@@ -61,7 +52,8 @@ test('mic press shows the heard text in an editable input; edited text is sent',
   await fireEvent.changeText(input, 'رصيد محمد');
   await fireEvent.press(screen.getByText('تمام'));
   await screen.findByText('تمام يا باشا');
-  expect(mockMutate).toHaveBeenCalledWith('رصيد محمد');
+  expect(parse).toHaveBeenCalledWith('رصيد محمد');
+  expect(resolve).toHaveBeenCalledWith(INTENT, {});
 });
 
 test('answer outcome shows the text and speaks it', async () => {
@@ -127,12 +119,22 @@ test('resolver failure shows a generic retry message', async () => {
   expect(screen.getByText('جرّب تاني')).toBeTruthy();
 });
 
-test('intent errors show voiceErrorText', async () => {
-  await toHeard();
-  const { VoiceError } = jest.requireMock('../../api/voice');
-  mockMutate.mockRejectedValue(new VoiceError('budget_exceeded'));
+test('the real parser output reaches resolveIntent (no network step)', async () => {
+  parse.mockImplementation(jest.requireActual('../../lib/voice/parse').parseCommand);
+  await toHeard('سيد دفع ألفين كاش');
+  resolve.mockResolvedValue({ kind: 'message', text: 'تمام يا باشا' });
   await fireEvent.press(screen.getByText('تمام'));
-  await screen.findByText('voice:budget_exceeded');
+  await screen.findByText('تمام يا باشا');
+  expect(resolve).toHaveBeenCalledWith({ type: 'record_payment', customer: 'سيد', amount: 2000, method: 'cash' }, {});
+});
+
+test('a phrase the parser does not know goes to the resolver as unknown', async () => {
+  parse.mockImplementation(jest.requireActual('../../lib/voice/parse').parseCommand);
+  await toHeard('الجو حلو النهارده');
+  resolve.mockResolvedValue({ kind: 'message', text: 'مفهمتش' });
+  await fireEvent.press(screen.getByText('تمام'));
+  await screen.findByText('مفهمتش');
+  expect(resolve).toHaveBeenCalledWith({ type: 'unknown' }, {});
 });
 
 test('speech errors show their text; cancelled shows nothing', async () => {
@@ -171,15 +173,14 @@ function deferred<T>() {
   return { promise, resolve: resolveFn };
 }
 
-test('intent resolved after cancel is ignored', async () => {
+test('answer resolved after cancel is ignored', async () => {
   await toHeard();
   const d = deferred<unknown>();
-  mockMutate.mockReturnValue(d.promise);
-  resolve.mockResolvedValue({ kind: 'navigate', path: '/x', say: 'هيا' });
+  resolve.mockReturnValue(d.promise);
   await fireEvent.press(screen.getByText('تمام'));
-  await screen.findByText('بفكّر…');
+  await screen.findByText('ثانية واحدة…');
   await fireEvent.press(screen.getByText('إلغاء'));
-  d.resolve(INTENT);
+  d.resolve({ kind: 'navigate', path: '/x', say: 'هيا' });
   await act(async () => {});
   expect(screen.getByText('اسأل أو سجّل بصوتك')).toBeTruthy();
   expect(onNavigate).not.toHaveBeenCalled();
@@ -205,18 +206,19 @@ test('resolveIntent resolved after unmount does nothing', async () => {
 test('a second request supersedes the first', async () => {
   await toHeard('أول');
   const first = deferred<unknown>();
-  mockMutate.mockReturnValueOnce(first.promise);
-  resolve.mockImplementation(async (i: any) => ({ kind: 'message', text: `نتيجة ${i.n}` }));
+  parse.mockReturnValueOnce({ n: 1 });
+  resolve.mockReturnValueOnce(first.promise);
   await fireEvent.press(screen.getByText('تمام'));
-  await screen.findByText('بفكّر…');
+  await screen.findByText('ثانية واحدة…');
   await fireEvent.press(screen.getByText('إلغاء'));
   hear('تاني');
   await fireEvent.press(screen.getByRole('button', { name: 'اسأل بصوتك' }));
   await screen.findByText('سمعتك بتقول:');
-  mockMutate.mockResolvedValueOnce({ n: 2 });
+  parse.mockReturnValueOnce({ n: 2 });
+  resolve.mockImplementationOnce(async (i: any) => ({ kind: 'message', text: `نتيجة ${i.n}` }));
   await fireEvent.press(screen.getByText('تمام'));
   await screen.findByText('نتيجة 2');
-  first.resolve({ n: 1 });
+  first.resolve({ kind: 'message', text: 'نتيجة 1' });
   await act(async () => {});
   expect(screen.getByText('نتيجة 2')).toBeTruthy();
   expect(screen.queryByText('نتيجة 1')).toBeNull();

@@ -2,9 +2,10 @@ import { Mic, MicOff } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { useVoiceData, useVoiceIntent, VoiceError, voiceErrorText } from '../api/voice';
+import { useVoiceData } from '../api/voice';
 import { formatEGP } from '../lib/money';
 import { cancelSpeak, listenOnce, speak, speechErrorText, speechSupported } from '../lib/speech';
+import { parseCommand } from '../lib/voice/parse';
 import { resolveIntent } from '../lib/voice/resolve';
 import type { CustomerOption, InvoiceOption, Picked, VoiceOutcome } from '../lib/voice/resolve';
 import { Button } from './Button';
@@ -67,7 +68,6 @@ function Ring() {
 }
 
 export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const intentMutation = useVoiceIntent();
   const data = useVoiceData();
   const [phase, setPhase] = useState<Phase>({ name: 'idle' });
   const [text, setText] = useState('');
@@ -156,14 +156,15 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
     const id = run.current;
     setPhase({ name: 'thinking' });
     try {
-      const intent = await intentMutation.mutateAsync(said);
-      if (run.current !== id) return;
+      // Understanding is on-device (fixed Egyptian-Arabic phrases). The AI path
+      // (useVoiceIntent + the voice-intent edge function) is switched off by the owner's choice.
+      const intent = parseCommand(said);
       const outcome = await resolveIntent(intent, data);
       if (run.current !== id) return;
       handleOutcome(outcome);
-    } catch (e) {
+    } catch {
       if (run.current !== id) return;
-      setPhase({ name: 'message', text: e instanceof VoiceError ? voiceErrorText(e.code, e.detail) : GENERIC_ERROR });
+      setPhase({ name: 'message', text: GENERIC_ERROR });
     }
   };
 
@@ -242,7 +243,7 @@ export function VoicePanel({ onNavigate }: { onNavigate: (path: string) => void 
         <View style={styles.stack}>
           <View style={styles.idle}>
             <ActivityIndicator color={colors.brand} />
-            <Text style={styles.caption}>بفكّر…</Text>
+            <Text style={styles.caption}>ثانية واحدة…</Text>
           </View>
           <Button title="إلغاء" variant="secondary" onPress={cancel} />
         </View>

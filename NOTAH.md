@@ -32,7 +32,7 @@ The owner records every sale as an invoice (cash or installment). Notah calculat
 | Phase 2: Android/iOS app + offline | ⏳ Not started |
 | Follow-up (home list, call/WhatsApp/note + promise, contact log in the customer file) | ✅ Built (migrations 0023–0025 applied; app pending deploy) |
 | Excel import (customers + running contracts + paid months) | ✅ Built (pending deploy) |
-| Voice assistant (Home mic, Haiku intents, $3/month cap) | ✅ Built (needs the `ANTHROPIC_API_KEY` secret; see §4.5) |
+| Voice assistant (Home mic, on-device Egyptian-Arabic phrases, free) | ✅ Built (no key needed; the AI path is deployed but off; see §4.5) |
 | ID-card OCR | ⏳ Not started |
 | Landing page | ⏳ Not started |
 | Islamic-finance (Shariah) review of pricing | ⏳ Pending, external |
@@ -168,19 +168,22 @@ v2 list views (migration `0021_v2_lists.sql`, `security_invoker`, anon revoked; 
 Forms (`sale/new`, `payment/*`, `contract/*`) live in a Stack above the tabs so they unmount when closed and never carry state into the next sale.
 
 ### 4.5 Voice assistant (v1)
+**Understanding is on-device and free:** `lib/voice/parse.ts` (`parseCommand`) matches fixed Egyptian-Arabic phrases and produces the same `Intent` the AI path did; no key, no network call, no cost. The AI path described below (`useVoiceIntent`, edge function `voice-intent`, `voice_usage`) is deployed but **switched off** in `VoicePanel` by the owner's choice and can be turned back on later by calling `useVoiceIntent` instead of `parseCommand`.
+
+**Phrases** (`parse.ts`, tests in `lib/__tests__/voiceParse.test.ts`; the owner guide is `docs/voice-assistant-setup.md`): record payment («سيد دفع ألفين كاش», «سجل دفعة لأحمد 25 ألف تحويل», «ألفين من سيد», optional «على التلاجة»), balance («سيد عليه كام», «حساب منى», «باقي على سيد كام»), late («مين متأخر»), totals («حصلنا كام النهارده», «إجمالي الشهر ده»), new invoice («فاتورة جديدة لمنى تلاجة بخمسة وعشرين ألف تقسيط سنتين مقدم خمسة آلاف», optional فايدة), invoice question («التلاجة بتاعة منى فاضل فيها كام», «فاتورة منى التلاجة»), open («افتح العملاء/الفواتير/الرئيسية/سيد/فاتورة منى تلاجة»). Amount words are parsed by the exported `parseAmount` (units to millions, «ونص», «وربع», digits incl. Arabic-Indic). Customer names keep the user's spelling; nothing unsaid is guessed; the output is whitelist-checked like `validateIntent`. Anything else is `unknown` and shows the «مفهمتش…» message.
 Mic button on Home (`ui/VoicePanel.tsx`). The owner speaks Egyptian Arabic; the app answers or opens a pre-filled form. **It never saves anything by voice** — money actions only open the form for the owner to confirm.
 
-**Flow:** `lib/speech.ts` (browser Web Speech, `ar-EG`, one absolute mic deadline, cancellable `speak`) → transcript shown and editable → `useVoiceIntent` (`api/voice.ts`) calls Edge Function `voice-intent` → validated intent → `lib/voice/resolve.ts` (`resolveIntent`) looks up customers/invoices via `useVoiceData` (normal RLS-scoped reads) → outcome: navigate (prefill params, `lib/prefill.ts`), answer text (shown and spoken), pick-a-customer / pick-an-invoice list, or a message. Stale results are dropped with a run counter.
+**Flow:** `lib/speech.ts` (browser Web Speech, `ar-EG`, one absolute mic deadline, cancellable `speak`) → transcript shown and editable → `parseCommand` (on-device; the AI variant would be `useVoiceIntent` in `api/voice.ts`, which calls Edge Function `voice-intent`) → validated intent → `lib/voice/resolve.ts` (`resolveIntent`) looks up customers/invoices via `useVoiceData` (normal RLS-scoped reads) → outcome: navigate (prefill params, `lib/prefill.ts`), answer text (shown and spoken), pick-a-customer / pick-an-invoice list, or a message. Stale results are dropped with a run counter.
 
 **Intents** (whitelist in `supabase/functions/voice-intent/logic.ts`, `validateIntent`): `record_payment`, `create_invoice`, `ask_balance`, `ask_late`, `ask_totals` (today|month), `ask_invoice`, `open` (customer|invoice|customers|invoices|home), `unknown`. Anything else or malformed becomes `unknown`.
 
-**Edge Function `voice-intent`** (`verify_jwt`): Claude Haiku 5.5, forced `intent` tool call, 15 s timeout, text max 300 chars. Errors: 400 `bad_request`/`too_long`, 401 `unauthorized`, 402 `budget_exceeded`, 503 `not_configured` (no `ANTHROPIC_API_KEY`) or `ai_unavailable`. The key is a Supabase Edge Function secret; owner steps are in `docs/voice-assistant-setup.md`.
+**Edge Function `voice-intent`** (`verify_jwt`): Claude Haiku 5.5, forced `intent` tool call, 15 s timeout, text max 300 chars. Errors: 400 `bad_request`/`too_long`, 401 `unauthorized`, 402 `budget_exceeded`, 503 `not_configured` (no `ANTHROPIC_API_KEY`) or `ai_unavailable`. The key is a Supabase Edge Function secret; only needed if the AI path is re-enabled.
 
 **Budget design:** table `voice_usage(tenant_id, month, cost_usd, calls, tokens)`, month in Cairo time. `voice_reserve(p_cap_usd, p_charge_usd)` runs *before* the AI call: it locks the month row, checks the role (owner/manager/accountant/collector) and adds the **worst-case** cost (4,000 input + 400 output tokens, about $0.0006) only if the total stays within the cap ($3 per shop per month, `CAP_USD`); otherwise it returns false and the function answers 402. `voice_record(p_input, p_output)` only stores token counts for reporting. So a slow or failed call can never push spending past the cap. Migrations `0026_voice_usage.sql`, `0027_voice_budget_upfront.sql`.
 
 **What the AI sees:** only the transcript text (inside `<transcript>`, treated as untrusted data) and today's date. It never sees customers, invoices or amounts; those are looked up in the app after the intent comes back.
 
-**Files:** `lib/speech.ts`, `api/voice.ts`, `lib/voice/{resolve,normalize}.ts`, `lib/prefill.ts` (+ payment/sale form prefills), `ui/VoicePanel.tsx`, `supabase/functions/voice-intent/{index,logic}.ts`.
+**Files:** `lib/speech.ts`, `api/voice.ts`, `lib/voice/{parse,resolve,normalize}.ts`, `lib/prefill.ts` (+ payment/sale form prefills), `ui/VoicePanel.tsx`, `supabase/functions/voice-intent/{index,logic}.ts`.
 
 **Devices:** needs the Web Speech API: «مضمون على Chrome (أندرويد والكمبيوتر). على الآيفون ممكن يشتغل في Safari بس مش مجرّب». Firefox (and any browser without the API) shows "الميكروفون مش مدعوم في المتصفح ده — جرّب Chrome". Chrome sends the audio to Google's recognition service, so it needs internet.
 
@@ -254,7 +257,7 @@ npx wrangler deploy           # publish worker "notah"
 
 ### Next features (owner's priority order)
 3. ~~**Excel import**~~ ✅ Done (pending deploy): customers + running contracts + paid months, template, preview/edit before saving. See §3.6.
-4. ~~**Voice commands**~~ ✅ Built as an AI voice assistant (§4.5); owner setup in `docs/voice-assistant-setup.md`. An in-app phrase guide is still open.
+4. ~~**Voice commands**~~ ✅ Built as an on-device phrase-based voice assistant (§4.5); sentences listed in `docs/voice-assistant-setup.md`. An in-app phrase guide is still open.
 5. **ID-card scanning (OCR):** photograph front and back of the Egyptian national ID, extract name, address, national ID (and derive birth date / gender / governorate), store images securely in the customer file; owner reviews before saving.
 
 ### Phase 2 — mobile app
