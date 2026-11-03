@@ -900,22 +900,40 @@ export type Database = {
       }
       tenant: {
         Row: {
+          address: string | null
           created_at: string
+          default_rate: number | null
+          default_years: number | null
           id: string
+          logo_path: string | null
           name: string
+          phone: string | null
           plan: string
+          whatsapp_template: string | null
         }
         Insert: {
+          address?: string | null
           created_at?: string
+          default_rate?: number | null
+          default_years?: number | null
           id?: string
+          logo_path?: string | null
           name: string
+          phone?: string | null
           plan?: string
+          whatsapp_template?: string | null
         }
         Update: {
+          address?: string | null
           created_at?: string
+          default_rate?: number | null
+          default_years?: number | null
           id?: string
+          logo_path?: string | null
           name?: string
+          phone?: string | null
           plan?: string
+          whatsapp_template?: string | null
         }
         Relationships: []
       }
@@ -1334,6 +1352,7 @@ export type Database = {
         }
         Returns: string
       }
+      set_shop_logo: { Args: { p_path: string }; Returns: undefined }
       signup_tenant: {
         Args: { p_full_name: string; p_tenant_name: string }
         Returns: string
@@ -1345,6 +1364,17 @@ export type Database = {
       update_payment_apply: {
         Args: { p_id: string; p_lines: Json; p_method: string }
         Returns: string
+      }
+      update_shop_settings: {
+        Args: {
+          p_address: string
+          p_default_rate: number
+          p_default_years: number
+          p_name: string
+          p_phone: string
+          p_whatsapp_template: string
+        }
+        Returns: undefined
       }
       voice_record: {
         Args: { p_input: number; p_output: number }
