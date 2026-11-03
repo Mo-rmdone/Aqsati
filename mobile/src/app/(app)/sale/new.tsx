@@ -24,7 +24,9 @@ import {
   type SaleForm,
 } from '../../../api/sales';
 import { useAttempt } from '../../../lib/attempt';
+import { useShopSettings } from '../../../api/settings';
 import { parseSalePrefill } from '../../../lib/prefill';
+import { initialRateYears, shouldSeedDefaults } from '../../../lib/saleDefaults';
 import { formatDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
 import { validateCustomer } from '../../../lib/validation';
@@ -101,6 +103,26 @@ export default function NewSale() {
   const [down, setDown] = useState(prefill.down ?? '');
   const [rate, setRate] = useState(prefill.rate ?? '');
   const [years, setYears] = useState(prefill.years ?? 1);
+  // The shop's default rate/years seed the form once, when they first arrive,
+  // for fields the user hasn't touched. Later refetches never overwrite.
+  const settings = useShopSettings().data;
+  const seeded = useRef(false);
+  const rateTouched = useRef(false);
+  const yearsTouched = useRef(false);
+  useEffect(() => {
+    if (!settings) return;
+    const seed = shouldSeedDefaults({
+      seeded: seeded.current,
+      hasSettings: true,
+      rateTouched: rateTouched.current,
+      yearsTouched: yearsTouched.current,
+      prefill,
+    });
+    seeded.current = true;
+    const d = initialRateYears(prefill, settings);
+    if (seed.rate) setRate(d.rate);
+    if (seed.years) setYears(d.years);
+  }, [settings, prefill]);
   const [saleDate, setSaleDate] = useState(todayISO());
   const [invoiceNo, setInvoiceNo] = useState(prefill.invoiceNo ?? '');
   const [paymentMethod, setPaymentMethod] = useState<SaleForm['paymentMethod']>('cash');
@@ -134,8 +156,11 @@ export default function NewSale() {
     setPrice('');
     setSaleType('installment');
     setDown('');
-    setRate('');
-    setYears(1);
+    const d = initialRateYears({}, settings);
+    setRate(d.rate);
+    setYears(d.years);
+    rateTouched.current = false;
+    yearsTouched.current = false;
     setSaleDate(todayISO());
     setInvoiceNo('');
     setPaymentMethod('cash');
@@ -253,7 +278,10 @@ export default function NewSale() {
           <Field
             label="نسبة الفايدة %"
             value={rate}
-            onChangeText={(v) => setRate(sanitizeRate(v))}
+            onChangeText={(v) => {
+              rateTouched.current = true;
+              setRate(sanitizeRate(v));
+            }}
             keyboardType="decimal-pad"
             error={show('ratePercent')}
           />
@@ -261,7 +289,12 @@ export default function NewSale() {
             <Text style={styles.label}>المدة</Text>
             <View style={styles.chips}>
               {[1, 2, 3, 4, 5].map((y) => (
-                <Chip key={y} label={`${y} ${y === 1 ? 'سنة' : 'سنين'}`} selected={years === y} onPress={() => setYears(y)} />
+                <Chip key={y} label={`${y} ${y === 1 ? 'سنة' : 'سنين'}`} selected={years === y} onPress={() => {
+                    yearsTouched.current = true;
+                    setYears(y);
+                  }}
+                />
+
               ))}
             </View>
           </View>
