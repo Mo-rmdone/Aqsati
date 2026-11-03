@@ -93,3 +93,11 @@ test('send opens the wa.me link synchronously and logs the contact', async () =>
   expect(text).toContain('متجر النور');
   expect(mockLog).toHaveBeenCalledWith({ id: 'log-1', customerId: 'c1', kind: 'whatsapp' });
 });
+
+test('a null customer row is treated as failed: no spinner, error shown', async () => {
+  ready();
+  mockSummary.mockReturnValue({ data: null, isSuccess: true, isFetching: false });
+  await render(<PaymentDone customerId="c1" paidNow={500} onDone={jest.fn()} />);
+  expect(screen.getByText('مقدرتش أحمّل بيانات العميل')).toBeTruthy();
+  expect(screen.queryAllByRole('button', { busy: true })).toHaveLength(0);
+});

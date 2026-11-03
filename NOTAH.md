@@ -114,7 +114,7 @@ docs/        Specs, plans, brand, design system, this project's history.
 ### 4.2 Data model (main tables)
 | Table | Purpose |
 |---|---|
-| `tenant` | A shop. Settings (migration `0028`): `address`, `phone`, `logo_path` (private bucket path), `default_rate` (0–200, prefills new invoices), `default_years` (1–5), `whatsapp_template` (≤ 500). Written only through owner-only RPCs `update_shop_settings(...)` and `set_shop_logo(p_path)` (audited); tenant RLS stays select-only. |
+| `tenant` | A shop. Settings (migration `0028`): `address`, `phone`, `logo_path` (private bucket path), `default_rate` (0–200, prefills new invoices), `default_years` (1–5), `whatsapp_template` (≤ 500). Written only through owner-only RPCs `update_shop_settings(...)` (audited) and `set_shop_logo(p_path)` (no audit row); tenant RLS stays select-only. |
 | `profile` | User ↔ shop, role (`owner` now; manager/accountant/collector/viewer supported in DB). |
 | `customer` | Shop's customers. `notes` (free text, v2). |
 | `contract` | An invoice. `sale_type` cash/installment, `contract_no` per shop, `external_invoice_no`, price, down payment, rate, `num_installments`, `start_date`. `interest_method` includes `'imported'` (explicit schedule, any installment count ≥ 1). |

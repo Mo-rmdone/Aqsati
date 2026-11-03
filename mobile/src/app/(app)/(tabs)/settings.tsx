@@ -57,6 +57,11 @@ export default function Settings() {
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Show the password-changed banner once: remember it, then clear the param.
+  const [passwordSaved] = useState(savedParam === 'password');
+  useEffect(() => {
+    if (savedParam === 'password') router.setParams({ saved: undefined });
+  }, [savedParam, router]);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
@@ -144,7 +149,7 @@ export default function Settings() {
   return (
     <Screen title="الإعدادات">
       <View style={[styles.column, desktop && styles.columnDesktop]}>
-        {savedParam === 'password' ? <Text style={styles.ok}>اتغيّرت كلمة المرور</Text> : null}
+        {passwordSaved ? <Text style={styles.ok}>اتغيّرت كلمة المرور</Text> : null}
         <SettingsSection title="بيانات المحل">
           <View style={styles.logoRow}>
             <View style={styles.logoBox}>

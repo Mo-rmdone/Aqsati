@@ -1,11 +1,13 @@
 const mockSignIn = jest.fn();
 const mockUpdateUser = jest.fn();
+const mockSignOut = jest.fn();
 
 jest.mock('../supabase', () => ({
   supabase: {
     auth: {
       signInWithPassword: (...a: unknown[]) => mockSignIn(...a),
       updateUser: (...a: unknown[]) => mockUpdateUser(...a),
+      signOut: (...a: unknown[]) => mockSignOut(...a),
     },
   },
 }));
@@ -16,6 +18,7 @@ beforeEach(() => {
   jest.resetAllMocks();
   mockSignIn.mockResolvedValue({ error: null });
   mockUpdateUser.mockResolvedValue({ error: null });
+  mockSignOut.mockResolvedValue({ error: null });
 });
 
 describe('changePassword', () => {
@@ -23,6 +26,8 @@ describe('changePassword', () => {
     expect(await changePassword('a@b.com', 'oldpass', 'newpass1')).toBe('ok');
     expect(mockSignIn).toHaveBeenCalledWith({ email: 'a@b.com', password: 'oldpass' });
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'newpass1' });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'others' });
   });
 
   it('same password makes no calls', async () => {
@@ -56,5 +61,29 @@ describe('changePassword', () => {
   it('a thrown error is failed', async () => {
     mockUpdateUser.mockRejectedValue(new Error('network'));
     expect(await changePassword('a@b.com', 'oldpass', 'newpass1')).toBe('failed');
+  });
+
+  it('a rate-limited sign-in is failed, not wrong_current', async () => {
+    mockSignIn.mockResolvedValue({ error: { code: 'over_request_rate_limit', message: 'Too many requests' } });
+    expect(await changePassword('a@b.com', 'oldpass', 'newpass1')).toBe('failed');
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('never signs out other sessions on a failure path', async () => {
+    mockUpdateUser.mockResolvedValue({ error: { code: 'weak_password', message: 'x' } });
+    await changePassword('a@b.com', 'oldpass', 'newpass1');
+    mockUpdateUser.mockResolvedValue({ error: { message: 'boom' } });
+    await changePassword('a@b.com', 'oldpass', 'newpass1');
+    await changePassword('a@b.com', 'same', 'same');
+    await changePassword('a@b.com', 'oldpass', '123');
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('a failing signOut still yields ok', async () => {
+    mockSignOut.mockResolvedValue({ error: { message: 'nope' } });
+    expect(await changePassword('a@b.com', 'oldpass', 'newpass1')).toBe('ok');
+    mockSignOut.mockRejectedValue(new Error('network'));
+    expect(await changePassword('a@b.com', 'oldpass', 'newpass1')).toBe('ok');
   });
 });

@@ -32,7 +32,8 @@ export function PaymentDone({
   // One id per screen visit: a double press logs once.
   const logId = useRef(newId()).current;
 
-  const failed = summary.isError || contracts.isError || shop.isError;
+  const noCustomer = summary.isSuccess && !summary.data;
+  const failed = summary.isError || noCustomer || contracts.isError || shop.isError;
   const ready =
     summary.isSuccess &&
     !!summary.data &&
