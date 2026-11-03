@@ -78,6 +78,8 @@ interface AuthContextValue {
   /** re-fetch the profile (reads the live session, never a captured one) */
   /** resolves true when a profile was loaded */
   refreshProfile: () => Promise<boolean>;
+  /** re-read the shop name from `tenant` (after a rename in settings) */
+  refreshShopName: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -213,29 +215,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  // Shop name: fetched once per tenant after the profile loads.
+  // Shop name: fetched once per tenant after the profile loads, and on demand after a rename.
   const tenantId = profile?.tenant_id ?? null;
+  const fetchShopName = useCallback(async (id: string): Promise<string | null> => {
+    const { data } = await supabase.from('tenant').select('name').eq('id', id).maybeSingle();
+    return data?.name ?? null;
+  }, []);
   useEffect(() => {
     if (!tenantId) {
       setShopName(null);
       return;
     }
     let cancelled = false;
-    supabase
-      .from('tenant')
-      .select('name')
-      .eq('id', tenantId)
-      .maybeSingle()
-      .then(
-        ({ data }) => {
-          if (!cancelled) setShopName(data?.name ?? null);
-        },
-        () => {},
-      );
+    fetchShopName(tenantId).then(
+      (name) => {
+        if (!cancelled) setShopName(name);
+      },
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [tenantId]);
+  }, [tenantId, fetchShopName]);
+
+  const refreshShopName = useCallback(async () => {
+    if (!tenantId) return;
+    try {
+      setShopName(await fetchShopName(tenantId));
+    } catch {
+      // keep the current name
+    }
+  }, [tenantId, fetchShopName]);
 
   const signOut = useCallback(async () => {
     try {
@@ -250,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, profile, shopName, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ session, profile, shopName, loading, refreshProfile, refreshShopName, signOut }}>
       {children}
     </AuthContext.Provider>
   );

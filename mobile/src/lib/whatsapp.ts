@@ -2,8 +2,9 @@
 // WhatsApp Cloud API. Ported from web/src/lib/whatsapp.ts; message copy and the
 // Egypt phone-normalization rule are product decisions, kept as-is.
 import type { Tables } from './database.types';
-import { formatDateAr } from './date';
+import { formatDateAr, todayISO } from './date';
 import { formatEGP } from './money';
+import { renderTemplate } from './template';
 
 /** Egypt mobile only (01[0125]xxxxxxxx): returns a wa.me link, or null for anything else. */
 export function whatsappLink(phone: string, msg: string): string | null {
@@ -27,8 +28,21 @@ export function reminderMessage(p: {
 }
 
 /** Per-customer follow-up reminder: the overdue total when anything is overdue, else the next installment. */
-export function followupReminder(row: Tables<'v_followup'>, merchant: string): string {
+export function followupReminder(
+  row: Tables<'v_followup'>,
+  merchant: string,
+  template?: string | null,
+): string {
   const name = row.name ?? '';
+  if (template && template.trim()) {
+    const overdue = (row.overdue_count ?? 0) > 0;
+    return renderTemplate(template, {
+      customer: name,
+      amount: overdue ? (row.overdue_amount ?? 0) : (row.next_due_amount ?? 0),
+      date: overdue ? todayISO() : row.next_due_date,
+      shop: merchant,
+    });
+  }
   const tail = `برجاء السداد في أقرب وقت. شكراً لتعاملك معنا — ${merchant}`;
   if ((row.overdue_count ?? 0) > 0) {
     return `أهلاً ${name} 👋\n` + `متأخر عليك ${formatEGP(row.overdue_amount ?? 0)} من أقساطك.\n` + tail;

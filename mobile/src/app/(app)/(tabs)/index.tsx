@@ -14,6 +14,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, Vie
 
 import { activityText, useCollectionsKpi, useRecentActivity, type ActivityRow } from '../../../api/dashboard';
 import { useFollowup, useLogContact, type ContactKind, type FollowupRow } from '../../../api/followup';
+import { useShopSettings } from '../../../api/settings';
 import { useAuth } from '../../../lib/auth';
 import { formatDateAr, headerDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
@@ -148,7 +149,15 @@ function RowActions({
   );
 }
 
-function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: string }) {
+function FollowupList({
+  rows,
+  shopName,
+  template,
+}: {
+  rows: FollowupRow[];
+  shopName: string;
+  template: string | null;
+}) {
   const router = useRouter();
   const desktop = useIsDesktop();
   const log = useLogContact();
@@ -194,7 +203,7 @@ function FollowupList({ rows, shopName }: { rows: FollowupRow[]; shopName: strin
   };
 
   const linkOf = (r: FollowupRow): string | null =>
-    r.phone ? whatsappLink(r.phone, followupReminder(r, shopName)) : null;
+    r.phone ? whatsappLink(r.phone, followupReminder(r, shopName, template)) : null;
 
   const doWhatsapp = (r: FollowupRow, link: string) => {
     // Open synchronously on the press (popup blockers reject window.open after an await), log in parallel.
@@ -403,6 +412,7 @@ export default function Home() {
   const { shopName } = useAuth();
   const kpi = useCollectionsKpi();
   const work = useFollowup();
+  const settings = useShopSettings();
 
   const search = (term: string) =>
     router.push(term ? `/customers?q=${encodeURIComponent(term)}` : '/customers');
@@ -442,7 +452,11 @@ export default function Home() {
       ) : work.isError ? (
         <Text style={styles.error}>تعذّر تحميل القائمة</Text>
       ) : (
-        <FollowupList rows={work.data} shopName={shopName ?? ''} />
+        <FollowupList
+          rows={work.data}
+          shopName={shopName ?? ''}
+          template={settings.data?.whatsappTemplate ?? null}
+        />
       )}
     </>
   );
