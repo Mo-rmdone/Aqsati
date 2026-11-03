@@ -114,7 +114,7 @@ docs/        Specs, plans, brand, design system, this project's history.
 ### 4.2 Data model (main tables)
 | Table | Purpose |
 |---|---|
-| `tenant` | A shop. |
+| `tenant` | A shop. Settings (migration `0028`): `address`, `phone`, `logo_path` (private bucket path), `default_rate` (0–200, prefills new invoices), `default_years` (1–5), `whatsapp_template` (≤ 500). Written only through owner-only RPCs `update_shop_settings(...)` and `set_shop_logo(p_path)` (audited); tenant RLS stays select-only. |
 | `profile` | User ↔ shop, role (`owner` now; manager/accountant/collector/viewer supported in DB). |
 | `customer` | Shop's customers. `notes` (free text, v2). |
 | `contract` | An invoice. `sale_type` cash/installment, `contract_no` per shop, `external_invoice_no`, price, down payment, rate, `num_installments`, `start_date`. `interest_method` includes `'imported'` (explicit schedule, any installment count ≥ 1). |
@@ -143,6 +143,9 @@ v2 list views (migration `0021_v2_lists.sql`, `security_invoker`, anon revoked; 
 | `update_payment(p_id, p_method, p_lines jsonb)` | Edits a payment: reverses its allocations, re-validates, re-allocates, audits. |
 | `build_schedule(...)`, `allocate_payment(...)` | Internal money math. |
 | `flip_overdue()` | Nightly status update (pg_cron). |
+| `update_shop_settings(...)`, `set_shop_logo(p_path)` | Owner-only shop settings and logo path (see `tenant` above). Logo path must start with `<tenant_id>/`. |
+
+**Storage:** private bucket `shop-logos` (1 MB, png/jpeg/webp). Objects live under `<tenant_id>/…`; RLS limits reads to the caller's shop and writes to owners. The app shows logos through signed URLs (1 hour).
 
 **Idempotency:** every client write carries a client-generated UUID. Re-sending it is a no-op returning the same id (advisory lock + exists check). A pure retry reuses the id; any edit to the form after a failed attempt gets a new id (`mobile/src/lib/attempt.ts`).
 
@@ -159,9 +162,10 @@ v2 list views (migration `0021_v2_lists.sql`, `security_invoker`, anon revoked; 
 | `/customer/[id]/edit` | Edit customer name, phone and notes. |
 | `/sale/new` (center "+ فاتورة") | New invoice with customer search or **عميل جديد**, cash/installment, live preview (monthly installment is the hero number). |
 | `/contract/[id]` | Contract: balance, installment table, payments, edit. |
-| `/payment/new`, `/payment/[id]/edit` | Record / edit a split payment. |
+| `/payment/new`, `/payment/[id]/edit` | Record / edit a split payment. After تسجيل دفعة the screen stays on "ابعت كشف حسابه على واتساب" (amount paid now, total paid, remaining per invoice); hidden when the phone is not an Egyptian mobile. |
 | `/import` | Excel import: pick file, preview/edit rows, save row-by-row. |
-| `/settings` (tab) | Shop name, sign out. |
+| `/settings` (tab) | **الإعدادات:** بيانات المحل (name, address, phone, logo); إعدادات التقسيط (default rate/years, applied only to new invoices; voice/URL prefill wins); رسالة الواتساب (template with `{العميل} {المبلغ} {التاريخ} {المحل}`; blank = built-in message; overdue reminders use the total overdue and today's date); الحساب (change password at `/account/password`, sign out). |
+| `/account/password` | Change password. |
 
 **Responsive shell (v2):** at width ≥ 1024 (`useIsDesktop()` in `mobile/src/ui/layout.ts`) the bottom tabs are replaced by a right-hand `Sidebar`; content is capped at `size.contentMax` (1200). Lists use `DataTable` on desktop and rows on phone; `Screen actions` render on desktop only. Shared pieces: `ui/Tile`, `ui/DataTable`, `ui/FilterChips`, `lib/status.ts` (status chips), `api/invoices.ts`. Dates use Cairo day helpers in `lib/date.ts` (`todayISO`, `headerDateAr`, `timeAr`).
 
