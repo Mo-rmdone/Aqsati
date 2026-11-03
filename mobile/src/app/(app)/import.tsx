@@ -398,10 +398,10 @@ const styles = StyleSheet.create({
     borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
   },
-  chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  chipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
   inactive: { opacity: 0.55 },
   chipText: { ...type.label, color: colors.ink },
-  chipTextOn: { color: colors.brand },
+  chipTextOn: { color: colors.onInverse },
   card: {
     backgroundColor: colors.surface,
     borderWidth: border.hairline,

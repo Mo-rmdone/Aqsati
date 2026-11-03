@@ -1,14 +1,15 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, size, space, type } from './theme';
+import { border, colors, radius, size, space, type } from './theme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'coin';
 
+// One blue action per screen; everything else is a white bordered button.
 const palette: Record<Variant, { bg: string; pressed: string; fg: string; border?: string }> = {
   primary: { bg: colors.brand, pressed: colors.brandStrong, fg: colors.onBrand },
-  secondary: { bg: colors.surface, pressed: colors.brandSoft, fg: colors.brand, border: colors.brand },
+  secondary: { bg: colors.surface, pressed: colors.surfaceSunken, fg: colors.ink, border: colors.lineStrong },
   danger: { bg: colors.error, pressed: colors.error, fg: colors.onError },
-  coin: { bg: colors.coin, pressed: colors.coin, fg: colors.onCoin },
+  coin: { bg: colors.coin, pressed: colors.brandStrong, fg: colors.onCoin },
 };
 
 export function Button({
@@ -35,7 +36,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         { backgroundColor: pressed ? p.pressed : p.bg },
-        p.border ? { borderWidth: 1.5, borderColor: p.border } : null,
+        p.border ? { borderWidth: border.strong, borderColor: p.border } : null,
         inactive && styles.inactive,
       ]}
     >

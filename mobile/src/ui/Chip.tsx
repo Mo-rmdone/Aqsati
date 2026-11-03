@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, size, space, type } from './theme';
+import { border, colors, radius, size, space, type } from './theme';
 
 export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -21,11 +21,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[4],
     borderRadius: radius.pill,
-    borderWidth: 1.5,
+    borderWidth: border.strong,
     borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
   },
-  chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  // Selected = black, the system's "this one" mark.
+  chipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
   chipText: { ...type.label, color: colors.ink },
-  chipTextOn: { color: colors.brand },
+  chipTextOn: { color: colors.onInverse },
 });

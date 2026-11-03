@@ -48,13 +48,14 @@ const styles = StyleSheet.create({
     minHeight: size.tapMin,
     paddingHorizontal: space[4],
     borderRadius: radius.pill,
-    borderWidth: border.hairline,
-    borderColor: colors.line,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+  // Selected = black, the system's "this one" mark.
+  chipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
   text: { ...type.label, color: colors.ink },
-  textOn: { color: colors.onBrand },
+  textOn: { color: colors.onInverse },
 });

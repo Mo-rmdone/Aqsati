@@ -7,7 +7,7 @@ import { formatEGP } from '../lib/money';
 import { autoSplit, validateSplit } from '../lib/split';
 import { Button } from './Button';
 import { Field } from './Field';
-import { colors, font, radius, spacing } from './theme';
+import { border, colors, font, radius, size, spacing } from './theme';
 
 export interface PaymentFormContract {
   contractId: string;
@@ -148,16 +148,18 @@ const styles = StyleSheet.create({
   heading: { fontSize: font.heading, fontWeight: '700', color: colors.text, textAlign: 'right' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
+    minHeight: size.tapMin,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
   },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  // Selected = black, the system's "this one" mark.
+  chipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
   chipText: { fontSize: font.body, color: colors.text },
-  chipTextOn: { color: colors.primaryText, fontWeight: '600' },
+  chipTextOn: { color: colors.onInverse, fontWeight: '600' },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,

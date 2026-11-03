@@ -19,7 +19,7 @@ export function Tile({ label, value, tone = 'neutral' }: { label: string; value:
     <View style={styles.tile}>
       <View style={styles.head}>
         <View style={[styles.dot, { backgroundColor: tileColor[tone] }]} />
-        <Text style={[styles.label, !desktop && type.body]}>{label}</Text>
+        <Text style={[desktop ? type.helper : type.body, styles.label]}>{label}</Text>
       </View>
       {typeof value === 'number' ? <Money value={value} style={valueStyle} /> : <Text style={valueStyle}>{value}</Text>}
     </View>
@@ -38,5 +38,5 @@ const styles = StyleSheet.create({
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   dot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
-  label: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },
+  label: { color: colors.inkMuted, textAlign: 'right' },
 });

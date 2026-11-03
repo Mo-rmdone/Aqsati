@@ -27,7 +27,7 @@ import { Money } from '../../../ui/Money';
 import { Screen } from '../../../ui/Screen';
 import { StatusChip } from '../../../ui/StatusChip';
 import { Tile } from '../../../ui/Tile';
-import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
+import { border, colors, radius, shadow, size, space, type } from '../../../ui/theme';
 import { VoicePanel } from '../../../ui/VoicePanel';
 
 function isOverdue(r: FollowupRow): boolean {
@@ -97,8 +97,8 @@ function IconAction({
         disabled && styles.actionDone,
       ]}
     >
-      <Icon size={size.iconSm} color={colors.brand} />
-      {wide ? <Text style={styles.actionText}>{label}</Text> : null}
+      <Icon size={size.iconSm} color={disabled ? colors.paid : colors.ink} />
+      {wide ? <Text style={[styles.actionText, disabled && styles.actionTextDone]}>{label}</Text> : null}
     </Pressable>
   );
 }
@@ -125,17 +125,17 @@ function RowActions({
       <IconAction
         compact={compact}
         wide
-        label={called ? '✓ اتصلت' : 'اتصلت'}
+        label={called ? 'اتصلت خلاص' : 'اتصلت'}
         Icon={called ? CheckSquare : Square}
         disabled={called}
         onPress={onCall}
       />
       {onWhatsapp ? (
-        <IconAction compact={compact} label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
+        <IconAction compact={compact} wide label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
       ) : (
         <Text style={styles.phoneHint}>رقم الموبايل مش صحيح، صلّحه عشان تبعت واتساب</Text>
       )}
-      <IconAction compact={compact} label="ملاحظة" Icon={StickyNote} onPress={onNote} />
+      <IconAction compact={compact} wide label="ملاحظة" Icon={StickyNote} onPress={onNote} />
       {compact ? (
         <Pressable accessibilityRole="button" onPress={onPay} style={[styles.compact, styles.compactPrimary]}>
           <Text style={[styles.compactText, { color: colors.onBrand }]}>تسجيل دفعة</Text>
@@ -269,7 +269,7 @@ function FollowupList({
             {
               key: 'amount',
               title: 'المبلغ',
-              width: 140,
+              width: 150,
               render: (r) => (
                 <View>
                   <Money value={amountOf(r)} />
@@ -286,7 +286,7 @@ function FollowupList({
             {
               key: 'since',
               title: 'الحالة',
-              width: 140,
+              width: 130,
               render: (r) => (
                 <View style={styles.followCell}>
                   <StatusChip label={isOverdue(r) ? 'متأخر' : 'مستحق'} tone={isOverdue(r) ? 'overdue' : 'due'} />
@@ -297,7 +297,7 @@ function FollowupList({
             {
               key: 'follow',
               title: 'المتابعة',
-              width: 300,
+              width: 340,
               render: (r) => {
                 const line = contactLine(r);
                 return (
@@ -421,7 +421,7 @@ export default function Home() {
   const headerActions = (
     <View style={styles.headerActions}>
       <SearchField onSubmit={search} />
-      <Button title="تسجيل دفعة" onPress={pickPayment} />
+      <Button title="تسجيل دفعة" variant="secondary" onPress={pickPayment} />
     </View>
   );
 
@@ -471,7 +471,7 @@ export default function Home() {
       {desktop ? null : (
         <View style={styles.quick}>
           <Button title="فاتورة جديدة" variant="coin" onPress={() => router.push('/sale/new')} />
-          <Button title="تسجيل دفعة" onPress={pickPayment} />
+          <Button title="تسجيل دفعة" variant="secondary" onPress={pickPayment} />
           <Button title="بحث عن عميل" variant="secondary" onPress={() => search('')} />
         </View>
       )}
@@ -535,8 +535,8 @@ const styles = StyleSheet.create({
     gap: space[3],
     ...shadow.card,
   },
-  // Late rows get a terracotta edge on the start side — attention, not alarm.
-  rowLate: { borderStartWidth: 4, borderStartColor: colors.overdue },
+  // Late rows get a tinted hairline; the "متأخر" chip carries the meaning.
+  rowLate: { borderColor: colors.overdueLine },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
   name: { ...type.title3, color: colors.ink, flexShrink: 1 },
   dimText: { color: colors.inkMuted },
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
   compact: {
-    minHeight: size.tapMin - space[2],
+    minHeight: size.tapMin,
     paddingHorizontal: space[3],
     borderRadius: radius.md,
     alignItems: 'center',
@@ -565,18 +565,19 @@ const styles = StyleSheet.create({
   iconAction: {
     minWidth: size.tapMin,
     backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
   },
   wideAction: {
     backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
     paddingHorizontal: space[4],
   },
-  actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paid },
+  actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paidLine },
   phoneHint: { ...type.body, color: colors.inkMuted, textAlign: 'right', flexBasis: '100%' },
-  actionText: { ...type.label, color: colors.brand },
+  actionText: { ...type.label, color: colors.ink },
+  actionTextDone: { color: colors.paid },
   compactPrimary: { backgroundColor: colors.brand },
   compactText: { ...type.label },
   cellName: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },

@@ -4,7 +4,10 @@
 
 ## Platform
 
-web
+web (one responsive Expo web app: phone layout with bottom tabs below 1024px, desktop sidebar + tables at 1024px and above). Live at https://notah.mohamedramadan.workers.dev.
+
+## Current reality (v2)
+One shop, one owner user. Built today: Home (numbers, follow-up list, recent activity, voice assistant), customers, customer file, invoices, invoice detail, new invoice (cash/installment), record payment, Excel import, settings, and WhatsApp reminders and summaries via wa.me. آجل credit invoices, staff roles in the UI, reports and PDFs are not built yet.
 
 ## Users
 Primary: staff at Egyptian installment offices (مكاتب تقسيط) and credit-selling SMBs (retail electronics, furniture, appliances, auto/moto dealers, B2B wholesale) — five roles: owner/manager (see the whole book, ensure collection), accountant (create contracts/invoices, record payments), collector (records payments from the field; the dedicated offline field app is post-MVP), viewer (read-only). Job: replace paper-ledger (كشكول)/Excel/WhatsApp tracking of installment (قسط) and deferred B2B credit (آجل) sales with a system that shows exactly who owes money and who's late, and gets it collected. Secondary, out of MVP: investor/partner (capital tracking) and the end customer/buyer (self-service portal).
@@ -26,7 +29,14 @@ In-branch, Arabic-speaking, Egypt-based small offices; EGP currency; Africa/Cair
 **Constraints:** must run at $0/month infrastructure cost (Supabase free tier + Cloudflare Pages/Workers free tier) — no paid service may become a hard MVP dependency. All monetary math is `NUMERIC`, computed in Postgres functions, never in JS. RLS is mandatory on every table. Every financial mutation must write an audit row via trigger.
 
 ## Brand Commitments
-Name: أقساطي / Aqsati. Tagline: "Get paid, automatically." Confirmed palette: deep teal (#0E7C6B) + ink navy as primary, one warm amber accent, with semantic green/amber/red reserved for status (not brand accent). No separate wireframe files exist in the repo — these written notes are the complete visual evidence on hand; treat them as binding until a real comp establishes more.
+Name: نوتة | Notah (renamed from أقساطي / Aqsati; the repo is still called Aqsati). The owner allows the identity and colors to change. The visual system is `/DESIGN.md` v2, "calm ledger, large print": `DESIGN_SYSTEM_V1.md` adapted for older shop owners, implemented in `mobile/src/ui/theme.ts`.
+- **Look:** a gray tray page with white cards, one action blue (#1F4FD8), and black for "where you are".
+- **Statuses:** icon + word + tinted fill and border. Overdue is burnt orange, never red. Red is for errors and destructive actions only.
+- **Type:** IBM Plex Sans Arabic, body 17, text ≥ 16. Buttons and inputs 56.
+- **Icons:** Lucide, always beside a word.
+- **Copy:** Egyptian Arabic.
+
+The approved Hi-Fi canvas (https://claude.ai/artifact/NCwdZo9cBsHYLyQJu2FkoV) still holds for layout and copy; its green/cream colors are superseded.
 
 ## Evidence on Hand
 No customer testimonials, case studies, or real usage data yet (pre-launch). Design-partner target: 5–10 Egyptian installment offices, not yet onboarded. Do not fabricate customer quotes, benchmarks, or pricing beyond what's stated in the investor-pitch doc's draft tiers (Free / Basic ~4,990 / Pro ~9,990 / Business ~24,990 EGP/yr — explicitly marked as needing validation before raise).
