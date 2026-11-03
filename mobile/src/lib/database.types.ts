@@ -158,6 +158,8 @@ export type Database = {
       contract: {
         Row: {
           branch_id: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
           contract_no: number
           created_at: string
           customer_id: string
@@ -176,6 +178,8 @@ export type Database = {
         }
         Insert: {
           branch_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           contract_no: number
           created_at?: string
           customer_id: string
@@ -194,6 +198,8 @@ export type Database = {
         }
         Update: {
           branch_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           contract_no?: number
           created_at?: string
           customer_id?: string
@@ -898,6 +904,119 @@ export type Database = {
           },
         ]
       }
+      refund: {
+        Row: {
+          amount: number
+          contract_id: string
+          created_by: string
+          customer_id: string
+          id: string
+          method: string
+          note: string | null
+          op_id: string
+          reason: string
+          refunded_at: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          contract_id: string
+          created_by?: string
+          customer_id: string
+          id?: string
+          method: string
+          note?: string | null
+          op_id: string
+          reason: string
+          refunded_at?: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          contract_id?: string
+          created_by?: string
+          customer_id?: string
+          id?: string
+          method?: string
+          note?: string | null
+          op_id?: string
+          reason?: string
+          refunded_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contract"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_contract_balance"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "refund_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_installment_aging"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "refund_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoice_list"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "refund_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "refund_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_customer_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "refund_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_followup"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "refund_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_worklist"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "refund_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant: {
         Row: {
           address: string | null
@@ -1056,6 +1175,7 @@ export type Database = {
           product_desc: string | null
           remaining: number | null
           sale_type: string | null
+          status: string | null
           tenant_id: string | null
           total_payable: number | null
         }
@@ -1208,6 +1328,7 @@ export type Database = {
       }
       v_invoice_list: {
         Row: {
+          cancelled_at: string | null
           contract_id: string | null
           contract_no: number | null
           customer_id: string | null
@@ -1324,6 +1445,16 @@ export type Database = {
           due_date: string
           seq_no: number
         }[]
+      }
+      cancel_contract: {
+        Args: {
+          p_contract: string
+          p_id: string
+          p_method: string
+          p_reason: string
+          p_refund: number
+        }
+        Returns: string
       }
       create_sale: { Args: { p: Json }; Returns: string }
       current_role: { Args: never; Returns: string }
