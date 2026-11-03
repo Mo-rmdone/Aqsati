@@ -41,7 +41,29 @@ export function reminderMessage(p: {
   );
 }
 
-/** Per-customer follow-up reminder: the overdue total when anything is overdue, else the next installment. */
+/** Account statement sent right after a payment: what was paid today, the total, and each invoice that still has a balance. */
+export function accountSummaryMessage(p: {
+  customer: string;
+  paidNow: number;
+  totalPaid: number;
+  invoices: { title: string; remaining: number }[];
+  shop: string;
+}): string {
+  const open = p.invoices.filter((i) => i.remaining > 0);
+  const rest =
+    open.length > 0
+      ? `الباقي:\n${open.map((i) => `• ${i.title}: ${formatEGP(i.remaining)}`).join('\n')}`
+      : 'خلّصت كل أقساطك 🎉';
+  return (
+    `أهلاً ${p.customer} 👋\n` +
+    `استلمنا منك النهارده ${formatEGP(p.paidNow)}.\n` +
+    `إجمالي اللي دفعته: ${formatEGP(p.totalPaid)}\n` +
+    `${rest}\n` +
+    `شكراً لتعاملك معنا — ${p.shop}`
+  );
+}
+
+/** Per-customer follow-up reminder:the overdue total when anything is overdue, else the next installment. */
 export function followupReminder(
   row: Tables<'v_followup'>,
   merchant: string,

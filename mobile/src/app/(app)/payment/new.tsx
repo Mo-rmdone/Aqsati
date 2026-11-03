@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { useCustomerContracts } from '../../../api/contracts';
 import { openInstallmentContracts, useRecordPayment } from '../../../api/payments';
 import { useAttempt } from '../../../lib/attempt';
 import { parsePaymentPrefill, prefillAmounts } from '../../../lib/prefill';
+import { PaymentDone } from '../../../ui/PaymentDone';
 import { PaymentForm } from '../../../ui/PaymentForm';
 import { Screen } from '../../../ui/Screen';
 import { colors, font } from '../../../ui/theme';
@@ -23,10 +24,22 @@ export default function NewPayment() {
   const contracts = useCustomerContracts(customerId);
   const open = useMemo(() => openInstallmentContracts(contracts.data ?? [], contractId), [contracts.data, contractId]);
 
+  // Set once the payment is saved: the screen then offers the WhatsApp statement instead of leaving.
+  const [paidNow, setPaidNow] = useState<number | null>(null);
+  const target = contractId ? `/contract/${contractId}` : `/customers/${customerId}`;
+
   const goBack = () => {
     if (router.canGoBack()) router.back();
-    else router.replace(contractId ? `/contract/${contractId}` : `/customers/${customerId}`);
+    else router.replace(target);
   };
+
+  if (paidNow !== null) {
+    return (
+      <Screen title="تسجيل دفعة" onBack={() => router.replace(target)}>
+        <PaymentDone customerId={customerId} paidNow={paidNow} onDone={() => router.replace(target)} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen title="تسجيل دفعة" onBack={goBack}>
@@ -49,7 +62,7 @@ export default function NewPayment() {
           onSubmit={async ({ method, lines, sig }) => {
             await record.mutateAsync({ id: attempt.idFor(sig), customerId, method, lines });
             attempt.reset();
-            router.replace(contractId ? `/contract/${contractId}` : `/customers/${customerId}`);
+            setPaidNow(Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100);
           }}
         />
       ) : null}

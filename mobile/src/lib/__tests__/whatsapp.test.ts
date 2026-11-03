@@ -1,4 +1,42 @@
-import { followupReminder, followupReminderLink, reminderMessage, whatsappLink } from '../whatsapp';
+import {
+  accountSummaryMessage,
+  followupReminder,
+  followupReminderLink,
+  reminderMessage,
+  whatsappLink,
+} from '../whatsapp';
+
+describe('accountSummaryMessage', () => {
+  const base = { customer: 'أحمد', paidNow: 500, totalPaid: 1500, shop: 'متجر النور' };
+
+  test('lists only invoices with a balance, with formatted money', () => {
+    const m = accountSummaryMessage({
+      ...base,
+      invoices: [
+        { title: 'ثلاجة', remaining: 2500 },
+        { title: 'غسالة', remaining: 0 },
+        { title: 'فاتورة 7', remaining: 100.5 },
+      ],
+    });
+    expect(m).toBe(
+      'أهلاً أحمد 👋\n' +
+        'استلمنا منك النهارده 500.00 ج.م.\n' +
+        'إجمالي اللي دفعته: 1,500.00 ج.م\n' +
+        'الباقي:\n' +
+        '• ثلاجة: 2,500.00 ج.م\n' +
+        '• فاتورة 7: 100.50 ج.م\n' +
+        'شكراً لتعاملك معنا — متجر النور',
+    );
+    expect(m).not.toContain('غسالة');
+  });
+
+  test('all paid replaces the remaining block', () => {
+    const m = accountSummaryMessage({ ...base, invoices: [{ title: 'ثلاجة', remaining: 0 }] });
+    expect(m).toContain('خلّصت كل أقساطك 🎉');
+    expect(m).not.toContain('الباقي');
+    expect(m).toContain('شكراً لتعاملك معنا — متجر النور');
+  });
+});
 
 const fbase = {
   name: 'أحمد', overdue_amount: 0, overdue_count: 0, next_due_amount: 300, next_due_date: '2026-12-01',
