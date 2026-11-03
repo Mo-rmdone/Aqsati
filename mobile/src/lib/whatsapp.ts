@@ -13,6 +13,20 @@ export function whatsappLink(phone: string, msg: string): string | null {
   return `https://wa.me/20${digits.slice(1)}?text=${encodeURIComponent(msg)}`;
 }
 
+/**
+ * wa.me link for a follow-up row, or null while the shop template is still loading
+ * (so the default message can never go out for a shop with a custom one).
+ * `settings` errors count as settled and fall back to the default message.
+ */
+export function followupReminderLink(
+  row: Tables<'v_followup'>,
+  merchant: string,
+  settings: { isSuccess: boolean; isError: boolean; template: string | null },
+): string | null {
+  if (!row.phone || !(settings.isSuccess || settings.isError)) return null;
+  return whatsappLink(row.phone, followupReminder(row, merchant, settings.template));
+}
+
 export function reminderMessage(p: {
   customer: string;
   amount: number;

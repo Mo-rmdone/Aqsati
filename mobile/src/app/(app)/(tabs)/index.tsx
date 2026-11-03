@@ -18,7 +18,7 @@ import { useShopSettings } from '../../../api/settings';
 import { useAuth } from '../../../lib/auth';
 import { formatDateAr, headerDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
-import { followupReminder, whatsappLink } from '../../../lib/whatsapp';
+import { followupReminderLink } from '../../../lib/whatsapp';
 import { Button } from '../../../ui/Button';
 import { ContactSheet } from '../../../ui/ContactSheet';
 import { DataTable } from '../../../ui/DataTable';
@@ -152,11 +152,11 @@ function RowActions({
 function FollowupList({
   rows,
   shopName,
-  template,
+  settings,
 }: {
   rows: FollowupRow[];
   shopName: string;
-  template: string | null;
+  settings: { isSuccess: boolean; isError: boolean; template: string | null };
 }) {
   const router = useRouter();
   const desktop = useIsDesktop();
@@ -203,7 +203,7 @@ function FollowupList({
   };
 
   const linkOf = (r: FollowupRow): string | null =>
-    r.phone ? whatsappLink(r.phone, followupReminder(r, shopName, template)) : null;
+    followupReminderLink(r, shopName, settings);
 
   const doWhatsapp = (r: FollowupRow, link: string) => {
     // Open synchronously on the press (popup blockers reject window.open after an await), log in parallel.
@@ -455,7 +455,11 @@ export default function Home() {
         <FollowupList
           rows={work.data}
           shopName={shopName ?? ''}
-          template={settings.data?.whatsappTemplate ?? null}
+          settings={{
+            isSuccess: settings.isSuccess,
+            isError: settings.isError,
+            template: settings.data?.whatsappTemplate ?? null,
+          }}
         />
       )}
     </>

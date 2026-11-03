@@ -1,4 +1,4 @@
-import { followupReminder, reminderMessage, whatsappLink } from '../whatsapp';
+import { followupReminder, followupReminderLink, reminderMessage, whatsappLink } from '../whatsapp';
 
 const fbase = {
   name: 'أحمد', overdue_amount: 0, overdue_count: 0, next_due_amount: 300, next_due_date: '2026-12-01',
@@ -48,6 +48,28 @@ describe('followupReminder with a custom template', () => {
   test('not overdue: next due amount and date', () => {
     const m = followupReminder(fbase, 'متجر النور', '{المبلغ} {التاريخ}');
     expect(m).toBe('300.00 ج.م 1 ديسمبر 2026');
+  });
+});
+
+describe('followupReminderLink gating', () => {
+  const row = { ...fbase, phone: '01012345678' };
+  const decoded = (l: string | null) => decodeURIComponent((l ?? '').split('text=')[1] ?? '');
+
+  test('null while settings are loading', () => {
+    expect(followupReminderLink(row, 'م', { isSuccess: false, isError: false, template: null })).toBeNull();
+  });
+  test('uses the custom template once loaded', () => {
+    const l = followupReminderLink(row, 'م', { isSuccess: true, isError: false, template: 'مرحباً {العميل}' });
+    expect(decoded(l)).toBe('مرحباً أحمد');
+  });
+  test('falls back to the default message on error', () => {
+    const l = followupReminderLink(row, 'م', { isSuccess: false, isError: true, template: null });
+    expect(decoded(l)).toContain('تذكير بقسط');
+  });
+  test('null without a valid phone', () => {
+    const s = { isSuccess: true, isError: false, template: null };
+    expect(followupReminderLink({ ...row, phone: null }, 'م', s)).toBeNull();
+    expect(followupReminderLink({ ...row, phone: '0123' }, 'م', s)).toBeNull();
   });
 });
 
