@@ -1488,6 +1488,7 @@ export type Database = {
         Returns: number
       }
       fn_normalize_lines: { Args: { p_lines: Json }; Returns: Json }
+      fn_reallocate_contract: { Args: { p_contract: string }; Returns: number }
       import_contract: { Args: { p: Json }; Returns: string }
       installment_status: {
         Args: { p_due: number; p_due_date: string; p_paid: number }
