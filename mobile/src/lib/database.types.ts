@@ -1217,6 +1217,16 @@ export type Database = {
           },
         ]
       }
+      v_contract_history: {
+        Row: {
+          action: string | null
+          after_json: Json | null
+          at: string | null
+          before_json: Json | null
+          contract_id: string | null
+        }
+        Relationships: []
+      }
       v_customer_summary: {
         Row: {
           customer_id: string | null
@@ -1455,6 +1465,15 @@ export type Database = {
           p_refund: number
         }
         Returns: string
+      }
+      correct_contract: {
+        Args: {
+          p: Json
+          p_contract: string
+          p_id: string
+          p_refund_method: string
+        }
+        Returns: Json
       }
       create_sale: { Args: { p: Json }; Returns: string }
       current_role: { Args: never; Returns: string }
