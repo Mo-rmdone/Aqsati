@@ -136,8 +136,8 @@ insert into tap(l) select is((select count(*)::int from (
     select at, lag(at) over () as prev from public.v_recent_activity where tenant_id = current_setting('t.v')::uuid) t
     where prev < at), 0, 'activity: ordered by at descending');
 
--- void contracts are excluded
-insert into tap(l) select is((select count(*)::int from public.v_invoice_list where contract_id = current_setting('t.k_void')::uuid), 0, 'void contract not in invoice list');
+-- void contracts: shown as cancelled in the invoice list (0029), excluded from the summary
+insert into tap(l) select is((select status from public.v_invoice_list where contract_id = current_setting('t.k_void')::uuid), 'cancelled', 'void contract listed as cancelled');
 insert into tap(l) select is((select count(*)::int from public.v_customer_summary where name = 'C-void'), 0, 'customer with only void contracts not in summary');
 
 -- tenant isolation (RLS through security_invoker)
