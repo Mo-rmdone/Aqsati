@@ -1,9 +1,9 @@
 -- supabase/tests/correct_contract_fixes_test.sql
--- 0031: payment edits after a correction refund, op id bound to one invoice, rate precision,
+-- 0031/0032: payment edits after a correction refund (and the refund floor), op id bound to one invoice, rate precision,
 -- down payment from 0, the shared-payment guard (decision 3), sale-date-only corrections.
 begin;
 create temp table tap(n serial, l text);
-insert into tap(l) select plan(22);
+insert into tap(l) select plan(27);
 
 -- runs a correction, returns the result as text or the sqlstate
 create function pg_temp.try(p_id uuid, k text, p jsonb, m text) returns text language plpgsql as $$
@@ -18,6 +18,14 @@ begin
     jsonb_build_array(jsonb_build_object('contract_id', current_setting(c), 'amount', amt)));
   return 'ok';
 exception when others then return sqlerrm;
+end $$;
+-- runs a payment edit, returns 'ok' or the sqlstate
+create function pg_temp.edit_state(k text, m text, c text, amt numeric) returns text language plpgsql as $$
+begin
+  perform public.update_payment(current_setting(k)::uuid, m,
+    jsonb_build_array(jsonb_build_object('contract_id', current_setting(c), 'amount', amt)));
+  return 'ok';
+exception when others then return sqlstate;
 end $$;
 -- allocations per payment of a contract, oldest first ('-' = none)
 create function pg_temp.allocs(c uuid) returns text language sql stable as $$
@@ -42,7 +50,8 @@ begin
   perform set_config('t.ca', ca::text, true);
   perform set_config('t.today', ((now() at time zone 'Africa/Cairo')::date)::text, true);
   foreach c in array array['t.ke','t.k2','t.kp','t.k0','t.kg','t.kcg','t.kt','t.kcd',
-                           't.pe1','t.pe2','t.pe3','t.pt','t.ope'] loop
+                           't.pe1','t.pe2','t.pe3','t.pt','t.ope',
+                           't.kf','t.pf1','t.pf2','t.pf3','t.opf'] loop
     perform set_config(c, gen_random_uuid()::text, true);
   end loop;
 end $$;
@@ -55,12 +64,16 @@ declare r uuid; c text;
     'sale_type', 'installment', 'sale_date', current_setting('t.today'),
     'down_payment', 10000, 'rate_percent', 30, 'years', 2, 'total_price', 25000);
 begin
-  foreach c in array array['t.ke','t.k2','t.kg','t.kt'] loop
+  foreach c in array array['t.ke','t.k2','t.kg','t.kt','t.kf'] loop
     r := public.create_sale(sale || jsonb_build_object('id', current_setting(c)));
   end loop;
   foreach c in array array['t.pe1','t.pe2','t.pe3'] loop
     r := public.record_payment(current_setting(c)::uuid, current_setting('t.ca')::uuid, 'cash',
       jsonb_build_array(jsonb_build_object('contract_id', current_setting('t.ke'), 'amount', 5000)));
+  end loop;
+  foreach c in array array['t.pf1','t.pf2','t.pf3'] loop
+    r := public.record_payment(current_setting(c)::uuid, current_setting('t.ca')::uuid, 'cash',
+      jsonb_build_array(jsonb_build_object('contract_id', current_setting('t.kf'), 'amount', 5000)));
   end loop;
   r := public.record_payment(current_setting('t.pt')::uuid, current_setting('t.ca')::uuid, 'cash',
     jsonb_build_array(jsonb_build_object('contract_id', current_setting('t.kt'), 'amount', 1000)));
@@ -77,6 +90,9 @@ reset role;
 update public.payment set received_at = now() - interval '3 minutes' where id = current_setting('t.pe1')::uuid;
 update public.payment set received_at = now() - interval '2 minutes' where id = current_setting('t.pe2')::uuid;
 update public.payment set received_at = now() - interval '1 minute'  where id = current_setting('t.pe3')::uuid;
+update public.payment set received_at = now() - interval '3 minutes' where id = current_setting('t.pf1')::uuid;
+update public.payment set received_at = now() - interval '2 minutes' where id = current_setting('t.pf2')::uuid;
+update public.payment set received_at = now() - interval '1 minute'  where id = current_setting('t.pf3')::uuid;
 -- decision 3: a down payment and a cash payment that also carry a line for another invoice
 insert into public.payment_line(payment_id, contract_id, tenant_id, amount, kind)
 select pl.payment_id, current_setting('t.k2')::uuid, pl.tenant_id, 1, 'installment'
@@ -109,6 +125,19 @@ begin
   perform public.record_payment(gen_random_uuid(), current_setting('t.ca')::uuid, 'cash',
     jsonb_build_array(jsonb_build_object('contract_id', current_setting('t.ke'), 'amount', 5000)));
   perform set_config('t.after_rec', pg_temp.money(current_setting('t.ke')::uuid), true);
+
+  -- refund floor on kf: cut 25000 -> 15000 refunds 8500 of the 15000 received
+  perform pg_temp.try(current_setting('t.opf')::uuid, 't.kf', jsonb_build_object('price', 15000), 'cash');
+  -- (c) method only still works
+  perform set_config('t.f_method', pg_temp.edit_state('t.pf3', 'wallet', 't.kf', 5000), true);
+  -- (a) down to exactly the refund: 5000 + 1000 + 2500 = 8500
+  perform set_config('t.f_exact', pg_temp.edit_state('t.pf2', 'cash', 't.kf', 1000) || '|'
+                                  || pg_temp.edit_state('t.pf3', 'cash', 't.kf', 2500), true);
+  perform set_config('t.f_after_exact', pg_temp.money(current_setting('t.kf')::uuid), true);
+  -- (b) one piastre below the refund
+  perform set_config('t.f_below', pg_temp.edit_state('t.pf3', 'cash', 't.kf', 2499.99), true);
+  perform set_config('t.f_after_below', pg_temp.money(current_setting('t.kf')::uuid) || '|'
+    || (select amount from public.payment where id = current_setting('t.pf3')::uuid), true);
 
   -- op id reused for another invoice
   perform set_config('t.reuse', pg_temp.try(current_setting('t.ope')::uuid, 't.k2', jsonb_build_object('price', 15000), 'cash'), true);
@@ -181,6 +210,13 @@ insert into tap(l) select is((select start_date::text from public.contract where
   'cash sale date: contract date moves');
 insert into tap(l) select is((select p.received_at || '|' || p.amount from public.payment p join public.payment_line pl on pl.payment_id = p.id
     where pl.contract_id = current_setting('t.kcd')::uuid), current_setting('t.kcd_pay'), 'cash sale date: the cash payment is untouched');
+
+-- 7. refund floor (0032)
+insert into tap(l) select is(current_setting('t.f_method'), 'ok', 'floor: a method-only edit still succeeds');
+insert into tap(l) select is(current_setting('t.f_exact'), 'ok|ok', 'floor: editing down to exactly the refund total succeeds');
+insert into tap(l) select is(current_setting('t.f_after_exact'), '0.00|0|0.00', 'floor: lines = refunds leaves nothing paid on the invoice');
+insert into tap(l) select is(current_setting('t.f_below'), '22023', 'floor: one piastre below the refund total raises 22023');
+insert into tap(l) select is(current_setting('t.f_after_below'), '0.00|0|0.00|2500.00', 'floor: the refused edit changed nothing');
 
 insert into tap(l) select * from finish();
 select string_agg(l, E'\n' order by n) as tap from tap;
