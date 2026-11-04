@@ -20,10 +20,13 @@ export function PaymentDone({
   customerId,
   paidNow,
   onDone,
+  onEdit,
 }: {
   customerId: string;
   paidNow: number;
   onDone: () => void;
+  /** Payments are never deleted; a wrong one is fixed by editing it. */
+  onEdit?: () => void;
 }) {
   const summary = useCustomerSummary(customerId);
   const contracts = useCustomerContracts(customerId);
@@ -85,6 +88,7 @@ export function PaymentDone({
       )}
       {failed ? <Text style={styles.helper}>مقدرتش أحمّل بيانات العميل</Text> : null}
       <Button title="تمام" variant="secondary" onPress={onDone} />
+      {onEdit ? <Button title="فيه غلط؟ عدّل الدفعة" variant="secondary" onPress={onEdit} /> : null}
     </View>
   );
 }

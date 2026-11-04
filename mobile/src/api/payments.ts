@@ -18,13 +18,20 @@ export function openInstallmentContracts(rows: ContractBalance[], preferId?: str
   return [...first, ...open.filter((r) => r.contract_id !== preferId)];
 }
 
+/** Open contracts in the order a new payment fills them: the chosen one first, then oldest first. */
+export function payableInOrder(rows: ContractBalance[], preferId?: string): ContractBalance[] {
+  const open = openInstallmentContracts(rows).sort((a, b) => Number(a.contract_no) - Number(b.contract_no));
+  const first = preferId ? open.filter((r) => r.contract_id === preferId) : [];
+  return [...first, ...open.filter((r) => r.contract_id !== preferId)];
+}
+
 export interface EditableContract {
   contractId: string;
   title: string;
   remaining: number;
 }
 
-const contractTitle = (c: ContractBalance) => `${c.product_desc ?? ''} (عقد ${c.contract_no})`;
+const contractTitle = (c: ContractBalance) => `${c.product_desc || 'فاتورة'} · فاتورة رقم ${c.contract_no}`;
 
 /**
  * Contracts an edited payment can be spread over: its own contracts (even if now settled; remaining =

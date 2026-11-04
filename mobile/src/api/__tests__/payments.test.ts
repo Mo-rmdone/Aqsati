@@ -7,6 +7,7 @@ import {
   isOpeningBalance,
   isPaymentEditable,
   openInstallmentContracts,
+  payableInOrder,
   paymentSpreadText,
   toPaymentLines,
 } from '../payments';
@@ -58,6 +59,15 @@ test('open contracts: installment with known remaining > 0 only; preferred first
   expect(openInstallmentContracts(rows).map((r) => r.contract_id)).toEqual(['a', 'e']);
   expect(openInstallmentContracts(rows, 'e').map((r) => r.contract_id)).toEqual(['e', 'a']);
   expect(openInstallmentContracts(rows, 'b').map((r) => r.contract_id)).toEqual(['a', 'e']);
+});
+
+test('payable order: oldest invoice first, the chosen one ahead of all', () => {
+  const numbered = (id: string, no: number, remaining: number | null = 100) =>
+    ({ contract_id: id, remaining, sale_type: 'installment', product_desc: id, contract_no: no }) as never;
+  const rows = [numbered('new', 9), numbered('old', 2), numbered('mid', 5), numbered('paid', 1, 0)];
+  expect(payableInOrder(rows).map((r) => r.contract_id)).toEqual(['old', 'mid', 'new']);
+  expect(payableInOrder(rows, 'new').map((r) => r.contract_id)).toEqual(['new', 'old', 'mid']);
+  expect(payableInOrder(rows, 'paid').map((r) => r.contract_id)).toEqual(['old', 'mid', 'new']);
 });
 
 test('payload keeps only positive lines with numeric amounts', () => {

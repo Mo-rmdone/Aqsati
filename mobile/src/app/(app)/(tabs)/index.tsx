@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import {
   Banknote,
   CheckSquare,
@@ -224,7 +224,7 @@ function FollowupList({
           noteId.current = newId();
           setNoteFor(r);
         }}
-        onPay={() => router.push(payPath(r))}
+        onPay={() => router.push(payPath(r) as Href)}
       />
     );
   };
