@@ -4,6 +4,7 @@ import {
   followupReminderLink,
   reminderMessage,
   whatsappLink,
+  callLink,
 } from '../whatsapp';
 
 describe('accountSummaryMessage', () => {
@@ -109,6 +110,14 @@ describe('followupReminderLink gating', () => {
     expect(followupReminderLink({ ...row, phone: null }, 'م', s)).toBeNull();
     expect(followupReminderLink({ ...row, phone: '0123' }, 'م', s)).toBeNull();
   });
+});
+
+test('callLink dials mobiles and landlines, null for nothing to dial', () => {
+  expect(callLink('010 1234 5678')).toBe('tel:01012345678');
+  expect(callLink('+20 2 2345 6789')).toBe('tel:+20223456789');
+  expect(callLink('')).toBeNull();
+  expect(callLink(null)).toBeNull();
+  expect(callLink('123')).toBeNull();
 });
 
 test('whatsappLink normalizes Egyptian mobile numbers', () => {

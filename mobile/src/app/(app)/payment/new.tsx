@@ -1,15 +1,18 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { useCustomerContracts } from '../../../api/contracts';
-import { openInstallmentContracts, useRecordPayment } from '../../../api/payments';
+import { useCustomer } from '../../../api/customers';
+import { payableInOrder, useRecordPayment } from '../../../api/payments';
 import { useAttempt } from '../../../lib/attempt';
 import { parsePaymentPrefill, prefillAmounts } from '../../../lib/prefill';
+import { totalRemaining } from '../../../lib/split';
+import { PayerCard } from '../../../ui/PayerCard';
 import { PaymentDone } from '../../../ui/PaymentDone';
 import { PaymentForm } from '../../../ui/PaymentForm';
 import { Screen } from '../../../ui/Screen';
-import { colors, font } from '../../../ui/theme';
+import { colors, type } from '../../../ui/theme';
 
 export default function NewPayment() {
   const router = useRouter();
@@ -21,48 +24,60 @@ export default function NewPayment() {
   const record = useRecordPayment();
   // Same id for a pure retry; a new one once the inputs changed after an attempt.
   const attempt = useAttempt();
+  const customer = useCustomer(customerId);
   const contracts = useCustomerContracts(customerId);
-  const open = useMemo(() => openInstallmentContracts(contracts.data ?? [], contractId), [contracts.data, contractId]);
+  // The chosen invoice first, then the rest oldest first: the order the money fills them.
+  const open = useMemo(() => payableInOrder(contracts.data ?? [], contractId), [contracts.data, contractId]);
+  const formContracts = open.map((c) => ({
+    contractId: c.contract_id as string,
+    title: `${c.product_desc || 'فاتورة'} · فاتورة رقم ${c.contract_no}`,
+    remaining: Number(c.remaining),
+  }));
 
   // Set once the payment is saved: the screen then offers the WhatsApp statement instead of leaving.
-  const [paidNow, setPaidNow] = useState<number | null>(null);
-  const target = contractId ? `/contract/${contractId}` : `/customers/${customerId}`;
+  const [done, setDone] = useState<{ paymentId: string; paidNow: number } | null>(null);
+  const target = (contractId ? `/contract/${contractId}` : `/customers/${customerId}`) as Href;
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace(target);
   };
 
-  if (paidNow !== null) {
+  if (done !== null) {
     return (
       <Screen title="تسجيل دفعة" onBack={() => router.replace(target)}>
-        <PaymentDone customerId={customerId} paidNow={paidNow} onDone={() => router.replace(target)} />
+        <PaymentDone
+          customerId={customerId}
+          paidNow={done.paidNow}
+          onDone={() => router.replace(target)}
+          onEdit={() => router.replace(`/payment/${done.paymentId}/edit` as Href)}
+        />
       </Screen>
     );
   }
 
   return (
     <Screen title="تسجيل دفعة" onBack={goBack}>
-      {contracts.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
-      {contracts.error ? <Text style={styles.error}>تعذر تحميل العقود</Text> : null}
-      {contracts.data && open.length === 0 ? <Text style={styles.error}>مفيش عقود مفتوحة للدفع</Text> : null}
+      {customer.data ? (
+        <PayerCard name={customer.data.name} phone={customer.data.phone} owed={totalRemaining(formContracts)} />
+      ) : null}
+      {contracts.isLoading || customer.isLoading ? <ActivityIndicator color={colors.brand} accessibilityLabel="بيحمّل" /> : null}
+      {contracts.error ? <Text style={styles.error}>مقدرتش أحمّل الفواتير، جرّب تاني</Text> : null}
+      {contracts.data && open.length === 0 ? <Text style={styles.error}>مفيش فواتير مفتوحة عليها فلوس</Text> : null}
       {open.length > 0 ? (
         <PaymentForm
           key={`${customerId}:${contractId ?? ''}`}
-          contracts={open.map((c) => ({
-            contractId: c.contract_id as string,
-            title: `${c.product_desc ?? ''} (عقد ${c.contract_no})`,
-            remaining: Number(c.remaining),
-          }))}
+          contracts={formContracts}
           initialAmounts={prefillAmounts(prefill)}
           initialTotal={prefill.amount !== undefined ? String(prefill.amount) : undefined}
           initialMethod={prefill.method}
-          submitLabel="حفظ الدفعة"
+          submitLabel="سجّل الدفعة"
+          payerName={customer.data?.name}
           loading={record.isPending}
           onSubmit={async ({ method, lines, sig }) => {
-            await record.mutateAsync({ id: attempt.idFor(sig), customerId, method, lines });
+            const paymentId = await record.mutateAsync({ id: attempt.idFor(sig), customerId, method, lines });
             attempt.reset();
-            setPaidNow(Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100);
+            setDone({ paymentId, paidNow: Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100 });
           }}
         />
       ) : null}
@@ -71,5 +86,5 @@ export default function NewPayment() {
 }
 
 const styles = StyleSheet.create({
-  error: { color: colors.danger, fontSize: font.body, textAlign: 'center' },
+  error: { ...type.body, color: colors.error, textAlign: 'center' },
 });

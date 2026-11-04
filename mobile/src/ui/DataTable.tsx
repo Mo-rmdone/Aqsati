@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useIsDesktop } from './layout';
-import { border, colors, radius, size, space, type } from './theme';
+import { border, colors, fontFamily, radius, shadow, size, space, type } from './theme';
 
 export type Column<T> = { key: string; title: string; width?: number; render: (row: T) => ReactNode };
 
@@ -36,7 +36,7 @@ export function DataTable<T>({
           <View style={styles.head}>
             {columns.map((c) => (
               <View key={c.key} style={[styles.cell, cell(c)]}>
-                <Text style={[styles.headText, desktop ? type.helper : type.body]}>{c.title}</Text>
+                <Text style={[desktop ? type.helper : type.body, styles.headText]}>{c.title}</Text>
               </View>
             ))}
           </View>
@@ -49,10 +49,12 @@ export function DataTable<T>({
                 accessibilityRole={onRowPress ? 'button' : undefined}
                 disabled={!onRowPress}
                 onPress={() => onRowPress?.(row)}
-                style={({ pressed }) => [
+                // `hovered` is set by react-native-web; on native it is undefined.
+                style={(state) => [
                   styles.row,
                   i > 0 && styles.rowLine,
-                  pressed && { backgroundColor: colors.brandSoft },
+                  onRowPress && (state as { hovered?: boolean }).hovered && styles.rowHover,
+                  state.pressed && styles.rowPressed,
                 ]}
               >
                 {columns.map((c) => (
@@ -76,13 +78,17 @@ const styles = StyleSheet.create({
     borderWidth: border.hairline,
     borderColor: colors.line,
     overflow: 'hidden',
+    ...shadow.card,
   },
   scrollView: { flexGrow: 0 },
   scroll: { flexGrow: 1 },
   head: { flexDirection: 'row', backgroundColor: colors.surfaceSunken, minHeight: size.tapMin, alignItems: 'center' },
-  headText: { color: colors.inkMuted, textAlign: 'right' },
-  row: { flexDirection: 'row', alignItems: 'center', minHeight: size.tapMin + space[2] },
+  headText: { fontFamily: fontFamily.semibold, color: colors.inkMuted, textAlign: 'right' },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: size.tapLg },
+  // Hairline dividers stay (unlike V1): they help an older eye track a wide row.
   rowLine: { borderTopWidth: border.hairline, borderTopColor: colors.line },
+  rowHover: { backgroundColor: colors.surfaceSunken },
+  rowPressed: { backgroundColor: colors.brandSoft },
   cell: { paddingHorizontal: space[4], paddingVertical: space[3], justifyContent: 'center' },
   empty: { padding: space[6], alignItems: 'center' },
 });

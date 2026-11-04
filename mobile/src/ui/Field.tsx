@@ -2,7 +2,7 @@ import { CircleAlert } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { colors, radius, size, space, type } from './theme';
+import { border, colors, radius, size, space, type } from './theme';
 
 export function Field({
   label,
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   label: { ...type.label, color: colors.ink, textAlign: 'right' },
   input: {
     minHeight: size.tapLg,
-    borderWidth: 1.5,
+    borderWidth: border.strong,
     borderColor: colors.lineStrong,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
@@ -57,8 +57,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textAlign: 'right',
   },
-  focused: { borderColor: colors.focus, borderWidth: 2 },
-  inputError: { borderColor: colors.error, borderWidth: 2 },
+  focused: { borderColor: colors.focus, borderWidth: border.focus },
+  inputError: { borderColor: colors.error, borderWidth: border.focus },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   error: { ...type.helper, color: colors.error, textAlign: 'right', flexShrink: 1 },
   helper: { ...type.helper, color: colors.inkMuted, textAlign: 'right' },

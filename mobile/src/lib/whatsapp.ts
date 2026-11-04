@@ -13,6 +13,12 @@ export function whatsappLink(phone: string, msg: string): string | null {
   return `https://wa.me/20${digits.slice(1)}?text=${encodeURIComponent(msg)}`;
 }
 
+/** A tel: link for any phone with 7+ digits (landlines too); null when there is nothing to dial. */
+export function callLink(phone: string | null | undefined): string | null {
+  const digits = (phone ?? '').replace(/[^\d+]/g, '');
+  return digits.replace(/\D/g, '').length >= 7 ? `tel:${digits}` : null;
+}
+
 /**
  * wa.me link for a follow-up row, or null while the shop template is still loading
  * (so the default message can never go out for a shop with a custom one).

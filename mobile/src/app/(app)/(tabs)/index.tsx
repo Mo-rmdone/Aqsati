@@ -1,11 +1,11 @@
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import {
   Banknote,
-  CheckSquare,
   FilePlus,
   MessageCircle,
+  Phone,
+  PhoneOutgoing,
   Search,
-  Square,
   StickyNote,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -18,16 +18,17 @@ import { useShopSettings } from '../../../api/settings';
 import { useAuth } from '../../../lib/auth';
 import { formatDateAr, headerDateAr, todayISO } from '../../../lib/date';
 import { newId } from '../../../lib/ids';
-import { followupReminderLink } from '../../../lib/whatsapp';
+import { callLink, followupReminderLink } from '../../../lib/whatsapp';
 import { Button } from '../../../ui/Button';
 import { ContactSheet } from '../../../ui/ContactSheet';
 import { DataTable } from '../../../ui/DataTable';
 import { useIsDesktop } from '../../../ui/layout';
 import { Money } from '../../../ui/Money';
+import { NumbersCard } from '../../../ui/NumbersCard';
 import { Screen } from '../../../ui/Screen';
 import { StatusChip } from '../../../ui/StatusChip';
 import { Tile } from '../../../ui/Tile';
-import { colors, radius, shadow, size, space, type } from '../../../ui/theme';
+import { border, colors, radius, shadow, size, space, type } from '../../../ui/theme';
 import { VoicePanel } from '../../../ui/VoicePanel';
 
 function isOverdue(r: FollowupRow): boolean {
@@ -73,14 +74,15 @@ function IconAction({
   label,
   Icon,
   onPress,
-  disabled,
+  done,
   compact,
   wide,
 }: {
   label: string;
   Icon: LucideIcon;
   onPress: () => void;
-  disabled?: boolean;
+  /** Already done today: green, but still pressable. */
+  done?: boolean;
   compact: boolean;
   wide?: boolean;
 }) {
@@ -88,23 +90,20 @@ function IconAction({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
       onPress={onPress}
       style={[
         compact ? styles.compact : styles.phoneAction,
         wide ? styles.wideAction : styles.iconAction,
-        disabled && styles.actionDone,
+        done && styles.actionDone,
       ]}
     >
-      <Icon size={size.iconSm} color={colors.brand} />
-      {wide ? <Text style={styles.actionText}>{label}</Text> : null}
+      <Icon size={size.iconSm} color={done ? colors.paid : colors.ink} />
+      {wide ? <Text style={[styles.actionText, done && styles.actionTextDone]}>{label}</Text> : null}
     </Pressable>
   );
 }
 
 function RowActions({
-  row,
   compact,
   called,
   onCall,
@@ -112,39 +111,34 @@ function RowActions({
   onNote,
   onPay,
 }: {
-  row: FollowupRow;
   compact: boolean;
   called: boolean;
-  onCall: () => void;
+  /** Null when the customer has no number to dial. */
+  onCall: (() => void) | null;
   onWhatsapp: (() => void) | null;
   onNote: () => void;
   onPay: () => void;
 }) {
   return (
     <View style={styles.actions}>
-      <IconAction
-        compact={compact}
-        wide
-        label={called ? '✓ اتصلت' : 'اتصلت'}
-        Icon={called ? CheckSquare : Square}
-        disabled={called}
-        onPress={onCall}
-      />
+      {onCall ? (
+        // "كلّم" dials and logs the call; after that it reads as done but can still dial again.
+        <IconAction
+          compact={compact}
+          wide
+          done={called}
+          label={called ? 'كلّمته النهارده' : 'كلّم'}
+          Icon={called ? PhoneOutgoing : Phone}
+          onPress={onCall}
+        />
+      ) : null}
       {onWhatsapp ? (
-        <IconAction compact={compact} label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
+        <IconAction compact={compact} wide label="واتساب" Icon={MessageCircle} onPress={onWhatsapp} />
       ) : (
         <Text style={styles.phoneHint}>رقم الموبايل مش صحيح، صلّحه عشان تبعت واتساب</Text>
       )}
-      <IconAction compact={compact} label="ملاحظة" Icon={StickyNote} onPress={onNote} />
-      {compact ? (
-        <Pressable accessibilityRole="button" onPress={onPay} style={[styles.compact, styles.compactPrimary]}>
-          <Text style={[styles.compactText, { color: colors.onBrand }]}>تسجيل دفعة</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.flex}>
-          <Button title="تسجيل دفعة" onPress={onPay} />
-        </View>
-      )}
+      <IconAction compact={compact} wide label="ملاحظة" Icon={StickyNote} onPress={onNote} />
+      <IconAction compact={compact} wide label="تسجيل دفعة" Icon={Banknote} onPress={onPay} />
     </View>
   );
 }
@@ -197,9 +191,14 @@ function FollowupList({
   const isCalled = (r: FollowupRow) =>
     called.has(r.customer_id ?? '') || !!r.called_today;
 
-  const doCall = async (r: FollowupRow) => {
+  const doCall = (r: FollowupRow, dial: string) => {
+    // Dial synchronously on the press (like WhatsApp); log the first call of the day in parallel.
+    void Linking.openURL(dial);
+    if (isCalled(r)) return;
     const id = r.customer_id ?? '';
-    if (await send(id, 'call')) setCalled((s) => new Set(s).add(id));
+    void send(id, 'call').then((ok) => {
+      if (ok) setCalled((s) => new Set(s).add(id));
+    });
   };
 
   const linkOf = (r: FollowupRow): string | null =>
@@ -213,18 +212,18 @@ function FollowupList({
 
   const actionsFor = (r: FollowupRow, compact: boolean) => {
     const link = linkOf(r);
+    const dial = callLink(r.phone);
     return (
       <RowActions
-        row={r}
         compact={compact}
         called={isCalled(r)}
-        onCall={() => void doCall(r)}
+        onCall={dial ? () => doCall(r, dial) : null}
         onWhatsapp={link ? () => doWhatsapp(r, link) : null}
         onNote={() => {
           noteId.current = newId();
           setNoteFor(r);
         }}
-        onPay={() => router.push(payPath(r))}
+        onPay={() => router.push(payPath(r) as Href)}
       />
     );
   };
@@ -272,32 +271,31 @@ function FollowupList({
               width: 140,
               render: (r) => (
                 <View>
-                  <Money value={amountOf(r)} />
-                  <Text style={styles.phone}>
-                    {isOverdue(r)
-                      ? 'متأخر'
-                      : r.next_due_date
-                        ? `القسط الجاي ${formatDateAr(r.next_due_date)}`
-                        : ''}
-                  </Text>
+                  <Money value={amountOf(r)} style={styles.tableMoney} />
+                  {!isOverdue(r) && r.next_due_date ? (
+                    <Text style={styles.phone}>{`القسط الجاي ${formatDateAr(r.next_due_date)}`}</Text>
+                  ) : null}
                 </View>
               ),
             },
             {
               key: 'since',
               title: 'الحالة',
-              width: 140,
+              width: 130,
+              // A short chip, the days under it (no repeated "متأخر").
               render: (r) => (
                 <View style={styles.followCell}>
                   <StatusChip label={isOverdue(r) ? 'متأخر' : 'مستحق'} tone={isOverdue(r) ? 'overdue' : 'due'} />
-                  <Text style={styles.phone}>{sinceText(r)}</Text>
+                  <Text style={styles.phone}>
+                    {isOverdue(r) ? `من ${r.days_late ?? 0} يوم` : sinceText(r)}
+                  </Text>
                 </View>
               ),
             },
             {
               key: 'follow',
               title: 'المتابعة',
-              width: 300,
+              width: 260,
               render: (r) => {
                 const line = contactLine(r);
                 return (
@@ -329,8 +327,11 @@ function FollowupList({
             style={[styles.row, isOverdue(r) && styles.rowLate]}
           >
             <View style={styles.rowTop}>
-              <Text style={[styles.name, dim && styles.dimText]}>{r.name ?? ''}</Text>
-              <Money value={amountOf(r)} />
+              <View style={styles.flex}>
+                <Text style={[styles.name, dim && styles.dimText]}>{r.name ?? ''}</Text>
+                {r.phone ? <Text style={styles.phone}>{r.phone}</Text> : null}
+              </View>
+              <Money value={amountOf(r)} style={styles.rowMoney} />
             </View>
             <StatusChip
               label={isOverdue(r) ? `متأخر ${r.days_late ?? 0} يوم` : sinceText(r) || 'مستحق'}
@@ -421,7 +422,7 @@ export default function Home() {
   const headerActions = (
     <View style={styles.headerActions}>
       <SearchField onSubmit={search} />
-      <Button title="تسجيل دفعة" onPress={pickPayment} />
+      <Button title="تسجيل دفعة" variant="secondary" onPress={pickPayment} />
     </View>
   );
 
@@ -468,27 +469,37 @@ export default function Home() {
   return (
     <Screen title={shopName ?? 'الرئيسية'} wide actions={headerActions}>
       <Text style={styles.date}>{headerDateAr()}</Text>
-      {desktop ? null : (
-        <View style={styles.quick}>
-          <Button title="فاتورة جديدة" variant="coin" onPress={() => router.push('/sale/new')} />
-          <Button title="تسجيل دفعة" onPress={pickPayment} />
-          <Button title="بحث عن عميل" variant="secondary" onPress={() => search('')} />
-        </View>
-      )}
-      {tiles}
-      {desktop ? null : <VoicePanel onNavigate={(p) => router.push(p as never)} />}
-      {kpi.isError ? <Text style={styles.error}>تعذّر تحميل الأرقام</Text> : null}
       {desktop ? (
-        <View style={styles.split}>
-          <View style={styles.main}>{worklist}</View>
-          <View style={styles.side}>
-            <VoicePanel onNavigate={(p) => router.push(p as never)} />
-            <ActivityCard />
-          </View>
-        </View>
-      ) : (
         <>
+          {tiles}
+          {kpi.isError ? <Text style={styles.error}>مقدرتش أحمّل الأرقام</Text> : null}
+          <View style={styles.split}>
+            <View style={styles.main}>{worklist}</View>
+            <View style={styles.side}>
+              <VoicePanel onNavigate={(p) => router.push(p as never)} />
+              <ActivityCard />
+            </View>
+          </View>
+        </>
+      ) : (
+        // Phone: who to chase comes first. "+ فاتورة" lives on the tab bar, so only two quiet shortcuts stay here.
+        <>
+          <View style={styles.quick}>
+            <View style={styles.flex}>
+              <Button title="تسجيل دفعة" variant="secondary" onPress={pickPayment} />
+            </View>
+            <View style={styles.flex}>
+              <Button title="بحث عن عميل" variant="secondary" onPress={() => search('')} />
+            </View>
+          </View>
+          <NumbersCard
+            overdue={kpi.data?.overdue_total ?? 0}
+            dueWeek={kpi.data?.expected_this_week ?? 0}
+            collectedMonth={kpi.data?.collected_this_month ?? 0}
+          />
+          {kpi.isError ? <Text style={styles.error}>مقدرتش أحمّل الأرقام</Text> : null}
           {worklist}
+          <VoicePanel onNavigate={(p) => router.push(p as never)} />
           <ActivityCard />
         </>
       )}
@@ -498,7 +509,10 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   date: { ...type.body, color: colors.inkMuted, textAlign: 'right' },
-  quick: { gap: space[3] },
+  quick: { flexDirection: 'row', gap: space[3] },
+  // Money never wraps onto two lines; the name shrinks instead.
+  rowMoney: { flexShrink: 0 },
+  tableMoney: { ...type.bodyStrong },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   search: {
     flexDirection: 'row',
@@ -535,8 +549,8 @@ const styles = StyleSheet.create({
     gap: space[3],
     ...shadow.card,
   },
-  // Late rows get a terracotta edge on the start side — attention, not alarm.
-  rowLate: { borderStartWidth: 4, borderStartColor: colors.overdue },
+  // Late rows get a tinted hairline; the "متأخر" chip carries the meaning.
+  rowLate: { borderColor: colors.overdueLine },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
   name: { ...type.title3, color: colors.ink, flexShrink: 1 },
   dimText: { color: colors.inkMuted },
@@ -545,7 +559,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
   compact: {
-    minHeight: size.tapMin - space[2],
+    minHeight: size.tapMin,
     paddingHorizontal: space[3],
     borderRadius: radius.md,
     alignItems: 'center',
@@ -565,20 +579,19 @@ const styles = StyleSheet.create({
   iconAction: {
     minWidth: size.tapMin,
     backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
   },
   wideAction: {
     backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
+    borderWidth: border.strong,
+    borderColor: colors.lineStrong,
     paddingHorizontal: space[4],
   },
-  actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paid },
+  actionDone: { backgroundColor: colors.paidBg, borderColor: colors.paidLine },
   phoneHint: { ...type.body, color: colors.inkMuted, textAlign: 'right', flexBasis: '100%' },
-  actionText: { ...type.label, color: colors.brand },
-  compactPrimary: { backgroundColor: colors.brand },
-  compactText: { ...type.label },
+  actionText: { ...type.label, color: colors.ink },
+  actionTextDone: { color: colors.paid },
   cellName: { ...type.bodyStrong, color: colors.ink, textAlign: 'right' },
   cellText: { ...type.body, color: colors.ink, textAlign: 'right' },
   phone: { ...type.body, color: colors.inkMuted, textAlign: 'right', writingDirection: 'ltr' },

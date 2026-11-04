@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { ChevronLeft, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -63,7 +63,7 @@ export default function Customers() {
   const open = (c: CustomerSummary) => {
     const target = customerRowTarget(picking, c.customer_id);
     if (target.clearPick) clearPick();
-    router.push(target.path);
+    router.push(target.path as Href);
   };
   const importButton = picking ? null : (
     <Button title="استيراد من إكسل" variant="secondary" onPress={() => router.push('/import')} />

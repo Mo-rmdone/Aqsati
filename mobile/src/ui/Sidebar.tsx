@@ -44,7 +44,8 @@ export function Sidebar() {
       <View style={styles.nav}>
         {items.map(({ label, href, match, Icon, disabled }) => {
           const active = !disabled && isActive(path, match);
-          const fg = active ? colors.brand : colors.inkMuted;
+          // Black pill = where you are; the rest stay dark gray, never faint.
+          const fg = active ? colors.onInverse : disabled ? colors.inkMuted : colors.ink;
           return (
             <Pressable
               key={label}
@@ -53,7 +54,11 @@ export function Sidebar() {
               accessibilityState={{ selected: active, disabled: !!disabled }}
               disabled={disabled}
               onPress={() => router.navigate(href)}
-              style={[styles.item, active && styles.itemActive]}
+              style={(state) => [
+                styles.item,
+                !active && !disabled && (state as { hovered?: boolean }).hovered && styles.itemHover,
+                active && styles.itemActive,
+              ]}
             >
               <Icon size={size.iconMd} color={fg} />
               <Text style={[styles.itemText, { color: fg }, active && styles.itemTextActive]}>{label}</Text>
@@ -84,12 +89,12 @@ const styles = StyleSheet.create({
     width: size.logo,
     height: size.logo,
     borderRadius: radius.md,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.inverse,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markText: { ...type.title3, color: colors.coin },
-  brand: { ...type.wordmark, color: colors.brand },
+  markText: { ...type.title3, color: colors.onInverse },
+  brand: { ...type.wordmark, color: colors.ink },
   cta: {
     minHeight: size.tapLg,
     borderRadius: radius.md,
@@ -109,7 +114,8 @@ const styles = StyleSheet.create({
     gap: space[3],
     paddingHorizontal: space[3],
   },
-  itemActive: { backgroundColor: colors.brandSoft },
+  itemHover: { backgroundColor: colors.surfaceSunken },
+  itemActive: { backgroundColor: colors.inverse },
   itemText: { ...type.body },
   itemTextActive: { ...type.bodyStrong },
   soon: {

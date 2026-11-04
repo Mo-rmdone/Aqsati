@@ -7,7 +7,7 @@ import { colors, shadow, size, type } from '../../../ui/theme';
 
 // "+ فاتورة" is a tab button only: it pushes /sale/new onto the stack above the tabs,
 // so the form unmounts when popped and never carries state into the next sale.
-// It is the one coin-colored action in the app (design system: coin = the + invoice action).
+// It is the round blue action in the tab bar (DESIGN.md: coin = the + invoice action).
 export default function TabsLayout() {
   const router = useRouter();
   const desktop = useIsDesktop();
@@ -16,7 +16,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.paper },
-        tabBarActiveTintColor: colors.brand,
+        tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkMuted,
         tabBarLabelStyle: { ...type.chip },
         // Desktop navigates with the sidebar instead.

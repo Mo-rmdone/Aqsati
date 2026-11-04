@@ -11,15 +11,28 @@ export function validateSplit(total: number, lines: SplitLine[]): string | null 
   if (!Number.isFinite(total) || total <= 0) return 'اكتب المبلغ الكلي';
   if (lines.some((l) => Number.isNaN(l.amount) || l.amount < 0)) return 'مبلغ غير صحيح';
   const used = lines.filter((l) => l.amount > 0);
-  if (used.length === 0) return 'وزّع المبلغ على عقد واحد على الأقل';
-  if (used.some((l) => cents(l.amount) > cents(l.remaining))) return 'المبلغ أكبر من المتبقي على العقد';
+  if (used.length === 0) return 'وزّع المبلغ على فاتورة واحدة على الأقل';
+  if (used.some((l) => cents(l.amount) > cents(l.remaining))) return 'المبلغ أكبر من الباقي على الفاتورة';
   const sum = used.reduce((s, l) => s + cents(l.amount), 0);
   if (sum !== cents(total)) return 'مجموع التوزيع لازم يساوي المبلغ الكلي';
   return null;
 }
 
-/** One open contract takes the whole total; otherwise the merchant fills the rows. */
+/**
+ * Suggested split: fills the contracts in the order given (the caller puts the oldest first),
+ * each up to its remaining. The merchant can still change it ("وزّع بنفسي"); anything above
+ * the customer's total remaining is left unallocated so validateSplit rejects it.
+ */
 export function autoSplit(total: number, contracts: { contractId: string; remaining: number }[]) {
-  const single = contracts.length === 1;
-  return contracts.map((c) => ({ contractId: c.contractId, amount: single && Number.isFinite(total) ? total : 0 }));
+  let left = Number.isFinite(total) && total > 0 ? cents(total) : 0;
+  return contracts.map((c) => {
+    const take = Math.min(left, Math.max(0, cents(c.remaining)));
+    left -= take;
+    return { contractId: c.contractId, amount: take / 100 };
+  });
+}
+
+/** Sum of what the customer still owes on the given contracts. */
+export function totalRemaining(contracts: { remaining: number }[]): number {
+  return contracts.reduce((s, c) => s + cents(c.remaining), 0) / 100;
 }

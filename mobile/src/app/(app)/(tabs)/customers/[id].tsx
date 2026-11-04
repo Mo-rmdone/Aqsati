@@ -122,7 +122,7 @@ function ContactLogCard({
       <Text style={styles.heading}>سجل التواصل</Text>
       <View style={styles.contactButtons}>
         <View style={styles.flex}>
-          <Button title={called ? '✓ اتصلت' : 'اتصلت'} variant="secondary" disabled={called} onPress={onCall} />
+          <Button title={called ? 'اتصلت خلاص' : 'اتصلت'} variant="secondary" disabled={called} onPress={onCall} />
         </View>
         <View style={styles.flex}>
           <Button title="ملاحظة" variant="secondary" onPress={onNote} />
